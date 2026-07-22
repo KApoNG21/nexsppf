@@ -1,3 +1,4 @@
+import { WarrantySearchForm } from '@/components/forms/WarrantySearchForm';
 import { getImageSlot } from '@/content/image-assets';
 import { SITE_COPY } from '@/content/site-content';
 
@@ -10,10 +11,8 @@ export default function WarrantyPage() {
           <p className="eyebrow">{SITE_COPY.warranty.title}</p>
           <h1>Digital Warranty เป็นส่วนหนึ่งของประสบการณ์หลังการติดตั้ง</h1>
           <p className="lead">{SITE_COPY.warranty.description}</p>
-          <div className="form-shell">
-            <label htmlFor="serial">กรอกหมายเลข Serial Number</label>
-            <div className="input-row"><input id="serial" placeholder="เช่น PRO-1196MXY0401178Q" /><a className="button primary" href="/r/PRO-1196MXY0401178Q">ดูตัวอย่าง</a></div>
-            <p>ลูกค้าไม่สามารถเปิดใช้งานบัตรรับประกันเอง การลงทะเบียนต้องให้ Dealer/Admin ลงทะเบียนหลังติดตั้ง</p>
+          <div aria-label="Serial Number warranty search: กรอกหมายเลข Serial Number; Dealer/Admin ลงทะเบียน; ลูกค้าไม่สามารถเปิดใช้งานบัตรรับประกันเอง">
+            <WarrantySearchForm />
           </div>
         </div>
         <div className={`hero-visual ${visual.layoutClass}`}>{visual.path && <img src={visual.path} alt={visual.alt} />}</div>

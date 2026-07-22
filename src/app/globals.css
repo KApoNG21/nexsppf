@@ -3097,6 +3097,30 @@ body {
   right: clamp(1.25rem, 6vw, 6rem);
   top: 0;
 }
+.nexs-hero.asset-hero {
+  background: #f7f8fa;
+  grid-template-columns: minmax(0, .9fr) minmax(320px, 1.1fr);
+  isolation: isolate;
+}
+.nexs-hero.asset-hero::after {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(255,255,255,.9) 34%, rgba(255,255,255,.12) 58%, rgba(0,0,0,.18) 100%),
+    radial-gradient(circle at 16% 50%, rgba(255,255,255,.96), rgba(255,255,255,0) 28rem);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+.nexs-hero-image {
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  object-position: center;
+  position: absolute;
+  width: 100%;
+  z-index: 0;
+}
 .nexs-hero-copy { max-width: 770px; position: relative; z-index: 2; }
 .nexs-hero-copy h1 {
   color: var(--n4-ink);

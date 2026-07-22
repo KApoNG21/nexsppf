@@ -5,8 +5,8 @@ import { BRAND_STRINGS } from '@/lib/design-tokens';
 
 export function VisualStage({ tone = 'clear' }: { tone?: 'clear' | 'matte' | 'color' | 'carbon' | 'dealer' }) {
   return (
-    <div className={`nexs-visual-stage ${tone}`} aria-label="AI render placeholder for premium automotive film visual">
-      <div className="render-label">AI RENDER PLACEHOLDER</div>
+    <div className={`nexs-visual-stage ${tone}`} aria-label="Premium automotive film visual">
+      <div className="render-label">NEXS SURFACE VISUAL</div>
       <div className="studio-floor" />
       <div className="light-bar one" />
       <div className="light-bar two" />
@@ -33,6 +33,8 @@ export function MarketingHero({
   secondaryHref = '/products',
   secondaryLabel = 'Explore Film Systems',
   tone = 'clear',
+  heroImage,
+  heroImageAlt,
 }: {
   eyebrow: string;
   title: string;
@@ -43,9 +45,18 @@ export function MarketingHero({
   secondaryHref?: string;
   secondaryLabel?: string;
   tone?: 'clear' | 'matte' | 'color' | 'carbon' | 'dealer';
+  heroImage?: string;
+  heroImageAlt?: string;
 }) {
   return (
-    <section className="nexs-hero premium-hero">
+    <section className={`nexs-hero premium-hero ${heroImage ? 'asset-hero' : ''}`}>
+      {heroImage && (
+        <img
+          className="nexs-hero-image"
+          src={heroImage}
+          alt={heroImageAlt ?? 'NEXS premium automotive film hero'}
+        />
+      )}
       <div className="nexs-hero-copy">
         <p className="eyebrow red-dot">{eyebrow}</p>
         <h1>{title}</h1>
@@ -61,7 +72,7 @@ export function MarketingHero({
           <span>12 Film Options</span>
         </div>
       </div>
-      <VisualStage tone={tone} />
+      {!heroImage && <VisualStage tone={tone} />}
     </section>
   );
 }

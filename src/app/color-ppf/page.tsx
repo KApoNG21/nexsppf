@@ -15,6 +15,8 @@ export default function ColorPpfPage() {
         secondaryHref="/compare"
         secondaryLabel="Compare Systems"
         tone="color"
+        heroImage="/media/nexs-matte-color-hero-v2.png"
+        heroImageAlt="Split matte black and purple blue color-shift cars for the NEXS Matte and Color Film Collection hero"
       />
       <ProductTierGrid category={category} />
       <LeadPanel title="Book a Color PPF consultation" />

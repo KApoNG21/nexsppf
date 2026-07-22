@@ -145,7 +145,7 @@ sudo tee "$TRAEFIK_DYNAMIC" >/dev/null <<'EOF'
 http:
   routers:
     nexsppf-web:
-      rule: "Host(`nexsppf.com`) || Host(`www.nexsppf.com`)"
+      rule: "Host(`nexsppf.com`) || Host(`www.nexsppf.com`) || Host(`usa.nexsppf.com`) || Host(`russia.nexsppf.com`)"
       entryPoints:
         - websecure
       tls:
@@ -167,11 +167,13 @@ sudo docker logs --tail=160 traefik-ojo9-traefik-1 || true
 
 echo "[12/12] Verify live routes"
 for url in \
+  "https://nexsppf.com/" \
   "https://www.nexsppf.com/" \
+  "https://usa.nexsppf.com/" \
+  "https://russia.nexsppf.com/" \
   "https://www.nexsppf.com/products" \
   "https://www.nexsppf.com/warranty" \
-  "https://www.nexsppf.com/r/PRO-1196MXY0401178Q" \
-  "https://nexsppf.com/"; do
+  "https://www.nexsppf.com/r/PRO-1196MXY0401178Q"; do
   echo "-- $url --"
   curl -I -L --max-time 30 -A 'Mozilla/5.0' "$url" | sed -n '1,25p'
   echo

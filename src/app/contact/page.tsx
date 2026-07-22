@@ -1,15 +1,6 @@
+import { ContactLeadForm } from '@/components/forms/ContactLeadForm';
 import { getImageSlot } from '@/content/image-assets';
 import { SITE_COPY } from '@/content/site-content';
-
-const PRODUCT_INTEREST_OPTIONS = [
-  'Not sure / Need recommendation',
-  'Clear PPF',
-  'Matte PPF',
-  'Color PPF',
-  'Ultimate Carbon Fiber',
-  'Dealer / Installer inquiry',
-  'Digital Warranty inquiry',
-] as const;
 
 export default function ContactPage() {
   const visual = getImageSlot('contact_lead_visual');
@@ -32,7 +23,7 @@ export default function ContactPage() {
           </div>
         </div>
         <div className="nexs-visual-stage dealer contact-visual-panel contact-card-visual" aria-label={visual.alt}>
-          <div className="render-label">AI RENDER PLACEHOLDER</div>
+          <div className="render-label">NEXS CONTACT</div>
           <div className="contact-device-card">
             <span>NEXS</span>
             <strong>nexsppf</strong>
@@ -49,43 +40,7 @@ export default function ContactPage() {
           </div>
           <p>แบบฟอร์มนี้เป็น public-safe lead capture สำหรับติดต่อกลับและแนะนำรุ่น ไม่แสดงข้อมูลเชิงพาณิชย์ภายใน</p>
         </div>
-        <div className="form-shell premium-form-shell">
-          <label htmlFor="contact-name">Name <span className="required-mark">*</span></label>
-          <input id="contact-name" placeholder="Your name" />
-
-          <label htmlFor="contact-phone">Phone <span className="required-mark">*</span></label>
-          <input id="contact-phone" placeholder="08x-xxx-xxxx" />
-
-          <label htmlFor="contact-line">LINE ID</label>
-          <input id="contact-line" placeholder="nexsppf or your LINE ID" />
-
-          <label htmlFor="contact-province">Province <span className="required-mark">*</span></label>
-          <input id="contact-province" placeholder="Province" />
-
-          <label htmlFor="contact-car">Vehicle model</label>
-          <input id="contact-car" placeholder="Porsche 911 / Tesla Model Y / etc." />
-
-          <label htmlFor="contact-product">Product interest</label>
-          <select id="contact-product">
-            {PRODUCT_INTEREST_OPTIONS.map((option) => <option key={option}>{option}</option>)}
-          </select>
-
-          <label htmlFor="contact-type">Contact type <span className="required-mark">*</span></label>
-          <select id="contact-type">
-            {SITE_COPY.leadForm.customerTypes.map((type) => <option key={type}>{type}</option>)}
-          </select>
-
-          <label htmlFor="contact-message">Message</label>
-          <textarea id="contact-message" placeholder="Tell us about your vehicle, preferred finish, city, or dealer inquiry" />
-
-          <label className="checkbox-row" htmlFor="contact-pdpa">
-            <input id="contact-pdpa" type="checkbox" />
-            <span>{SITE_COPY.leadForm.pdpaConsentLabel} <a href={SITE_COPY.leadForm.privacyPolicyHref}>Privacy Policy</a></span>
-          </label>
-
-          <p className="form-note">Required: name, phone, province, contact type, and contact consent.</p>
-          <button className="button primary" type="button">{SITE_COPY.leadForm.submitCta}</button>
-        </div>
+        <ContactLeadForm />
       </section>
     </>
   );

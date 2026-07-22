@@ -20,6 +20,8 @@ export default function AboutNexsPage() {
         secondaryHref="/contact"
         secondaryLabel="Contact NEXS"
         tone="dealer"
+        heroImage="/media/nexs-about-hero-v2.png"
+        heroImageAlt="Graphite car close-up with headlight and film reflections for the About NEXS hero"
       />
       <section className="section section-tight">
         <div className="premium-pillar-grid">

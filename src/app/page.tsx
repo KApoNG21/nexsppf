@@ -20,6 +20,8 @@ export default function HomePage() {
         secondaryHref="/contact"
         secondaryLabel="Find an Installer"
         tone="clear"
+        heroImage="/media/nexs-home-hero-v2.png"
+        heroImageAlt="White premium sports car in a white black and red NEXS studio composition"
       />
 
       <CategoryOverview />
