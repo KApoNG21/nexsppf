@@ -153,8 +153,26 @@ export async function getAdminRecords(type: AdminRecordType, limit = 30): Promis
   const queries: Record<AdminRecordType, string> = {
     warranties: `SELECT w.serial_code AS reference, w.product_model_code AS subject, d.name AS detail, w.install_date AS date, w.status
       FROM warranties w JOIN dealers d ON d.id = w.dealer_id ORDER BY w.created_at DESC LIMIT ?`,
-    dealers: `SELECT dealer_code AS reference, name AS subject, province AS detail, created_at AS date, status
-      FROM dealers ORDER BY created_at DESC LIMIT ?`,
+    dealers: `SELECT d.dealer_code AS reference, d.name AS subject,
+        d.province || CASE WHEN account.email IS NULL THEN ' · ยังไม่มีบัญชี' ELSE ' · ' || account.email END AS detail,
+        d.created_at AS date,
+        CASE
+          WHEN d.status <> 'active' THEN d.status
+          WHEN account.email IS NULL THEN 'no-account'
+          WHEN account.account_status = 'suspended' OR account.role_status = 'suspended' THEN 'account-suspended'
+          WHEN account.must_change_password THEN 'password-change'
+          ELSE 'active'
+        END AS status
+      FROM dealers d
+      LEFT JOIN LATERAL (
+        SELECT ar.email, ar.status AS role_status, aa.status AS account_status, aa.must_change_password
+        FROM account_roles ar
+        LEFT JOIN auth_accounts aa ON lower(aa.email) = lower(ar.email)
+        WHERE ar.dealer_id = d.id AND ar.role = 'dealer'
+        ORDER BY ar.created_at DESC
+        LIMIT 1
+      ) account ON true
+      ORDER BY d.created_at DESC LIMIT ?`,
     maintenance: `SELECT COALESCE(m.reference_code, 'MNT-' || m.id) AS reference, w.serial_code AS subject, m.maintenance_type || CASE WHEN m.performed_by IS NULL THEN '' ELSE ' · ' || m.performed_by END AS detail, m.maintenance_date AS date, m.result_status AS status
       FROM maintenance_records m JOIN warranties w ON w.id = m.warranty_id ORDER BY m.created_at DESC LIMIT ?`,
     support: `SELECT reference_code AS reference, serial_code AS subject,

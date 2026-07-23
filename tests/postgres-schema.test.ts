@@ -41,4 +41,11 @@ describe('PostgreSQL migration contract', () => {
     expect(sql).toContain("'pending_customer'");
     expect(sql).toContain("ALTER COLUMN customer_name DROP NOT NULL");
   });
+
+  it('supports managed Dealer credentials and forced first-login password changes', () => {
+    const sql = readFileSync('migrations/postgres/0003_partner_account_management.sql', 'utf8');
+    expect(sql).toContain('must_change_password');
+    expect(sql).toContain('password_changed_at');
+    expect(sql).toContain('auth_accounts_status_idx');
+  });
 });

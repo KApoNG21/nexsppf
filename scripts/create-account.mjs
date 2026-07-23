@@ -30,15 +30,18 @@ try {
   if (dealerCode && !dealer.rows[0]) throw new Error(`Active dealer not found: ${dealerCode}`);
 
   const passwordHash = await bcrypt.hash(password, 12);
+  const mustChangePassword = role === "dealer";
   await client.query(
-    `INSERT INTO auth_accounts (email, display_name, password_hash, status)
-     VALUES ($1, $2, $3, 'active')
+    `INSERT INTO auth_accounts (email, display_name, password_hash, status, must_change_password)
+     VALUES ($1, $2, $3, 'active', $4)
      ON CONFLICT (email) DO UPDATE SET
        display_name = EXCLUDED.display_name,
        password_hash = EXCLUDED.password_hash,
        status = 'active',
+       must_change_password = EXCLUDED.must_change_password,
+       password_changed_at = NULL,
        updated_at = CURRENT_TIMESTAMP`,
-    [email, displayName, passwordHash],
+    [email, displayName, passwordHash, mustChangePassword],
   );
   await client.query(
     `INSERT INTO account_roles (email, role, dealer_id, status)

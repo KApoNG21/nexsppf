@@ -116,8 +116,8 @@ export function TrustStrip() {
 }
 
 export function DashboardShell({ role, title, children, active = "dashboard" }: { role: "Dealer" | "Admin"; title: string; children: ReactNode; active?: string }) {
-  const dealerLinks = [["dashboard", "ภาพรวม", "/dealer"], ["register", "เปิดใช้งาน QR", "/dealer/register-warranty"], ["warranties", "บัตรรับประกัน", "/dealer/warranties"], ["maintenance", "บำรุงรักษา", "/dealer/maintenance"], ["requests", "งานที่ได้รับมอบหมาย", "/dealer/requests"], ["profile", "ข้อมูลร้าน", "/dealer/profile"]];
-  const adminLinks = [["dashboard", "ภาพรวม", "/admin"], ["serials", "Serial / Batch", "/admin/serials"], ["warranties", "บัตรรับประกัน", "/admin/warranties"], ["exceptions", "Registration Exceptions", "/admin/registration-exceptions"], ["dealers", "Dealer", "/admin/dealers"], ["products", "สินค้า / Policy", "/admin/products"], ["maintenance", "Maintenance", "/admin/maintenance"], ["media", "Private Media", "/admin/media"], ["contact", "Contact Requests", "/admin/contact-requests"], ["support", "Support Requests", "/admin/support-requests"], ["inspection", "Inspection", "/admin/inspection-requests"], ["audit", "Audit Log", "/admin/audit-log"], ["reports", "Reports", "/admin/reports"], ["policy", "Policy", "/admin/policy"]];
+  const dealerLinks = [["dashboard", "ภาพรวม", "/dealer"], ["register", "เปิดใช้งาน QR", "/dealer/register-warranty"], ["warranties", "บัตรรับประกัน", "/dealer/warranties"], ["maintenance", "บำรุงรักษา", "/dealer/maintenance"], ["requests", "งานที่ได้รับมอบหมาย", "/dealer/requests"], ["profile", "ข้อมูลร้าน", "/dealer/profile"], ["password", "เปลี่ยนรหัสผ่าน", "/change-password?return_to=/dealer"]];
+  const adminLinks = [["dashboard", "ภาพรวม", "/admin"], ["serials", "Serial / Batch", "/admin/serials"], ["warranties", "บัตรรับประกัน", "/admin/warranties"], ["exceptions", "Registration Exceptions", "/admin/registration-exceptions"], ["dealers", "Dealer", "/admin/dealers"], ["products", "สินค้า / Policy", "/admin/products"], ["maintenance", "Maintenance", "/admin/maintenance"], ["media", "Private Media", "/admin/media"], ["contact", "Contact Requests", "/admin/contact-requests"], ["support", "Support Requests", "/admin/support-requests"], ["inspection", "Inspection", "/admin/inspection-requests"], ["audit", "Audit Log", "/admin/audit-log"], ["reports", "Reports", "/admin/reports"], ["policy", "Policy", "/admin/policy"], ["password", "เปลี่ยนรหัสผ่าน", "/change-password?return_to=/admin"]];
   const links = role === "Dealer" ? dealerLinks : adminLinks;
   return (
     <div className="dashboard-page">
@@ -140,7 +140,7 @@ export function StatCard({ label, value, note }: { label: string; value: string;
 }
 
 export function StatusPill({ status }: { status: string }) {
-  const labels: Record<string, string> = { active: "ACTIVE", pending: "รอตรวจสอบ", "pending-customer": "รอลูกค้ากรอกข้อมูล", "profile-required": "รอลูกค้ากรอกข้อมูล", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่เปิดใช้งาน", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
+  const labels: Record<string, string> = { active: "ACTIVE", pending: "รอตรวจสอบ", "pending-customer": "รอลูกค้ากรอกข้อมูล", "profile-required": "รอลูกค้ากรอกข้อมูล", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่เปิดใช้งาน", "no-account": "ยังไม่มีบัญชี", "password-change": "รอเปลี่ยนรหัส", "account-suspended": "บัญชีถูกระงับ", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
   return <span className={`status-pill status-${status}`}>{labels[status] ?? status}</span>;
 }
 

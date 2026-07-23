@@ -9,6 +9,7 @@ export type PartnerAccess = {
   role: PartnerRole;
   dealerId: number | null;
   dealerName: string | null;
+  mustChangePassword: boolean;
 };
 
 type AccessRow = {
@@ -19,6 +20,7 @@ type AccessRow = {
   role_status: string;
   dealer_name: string | null;
   dealer_status: string | null;
+  must_change_password: boolean;
 };
 
 export async function findPartnerAccess(email: string, requiredRole: PartnerRole): Promise<PartnerAccess | null> {
@@ -31,6 +33,7 @@ export async function findPartnerAccess(email: string, requiredRole: PartnerRole
       ar.role,
       ar.dealer_id,
       aa.status AS account_status,
+      aa.must_change_password,
       ar.status AS role_status,
       d.name AS dealer_name,
       d.status AS dealer_status
@@ -50,6 +53,7 @@ export async function findPartnerAccess(email: string, requiredRole: PartnerRole
     role: requiredRole,
     dealerId: row.dealer_id,
     dealerName: row.dealer_name,
+    mustChangePassword: Boolean(row.must_change_password),
   };
 }
 
@@ -57,7 +61,7 @@ export async function authorizePartnerRequest(request: Request, requiredRole: Pa
   const session = sessionFromRequest(request);
   if (!session) return null;
   const access = await findPartnerAccess(session.email, requiredRole);
-  return access ? { ...access, displayName: session.displayName } : null;
+  return access && !access.mustChangePassword ? { ...access, displayName: session.displayName } : null;
 }
 
 export function unauthorizedResponse() {

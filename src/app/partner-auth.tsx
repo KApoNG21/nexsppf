@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { findPartnerAccess, type PartnerAccess, type PartnerRole } from "../db/partner-access";
 import { chatGPTSignOutPath, requireChatGPTUser } from "./chatgpt-auth";
 
@@ -6,6 +7,9 @@ export async function requirePartnerAccess(role: PartnerRole, returnTo: string):
   const user = await requireChatGPTUser(returnTo);
   const access = await findPartnerAccess(user.email, role);
   if (!access) return null;
+  if (access.mustChangePassword) {
+    redirect(`/change-password?return_to=${encodeURIComponent(returnTo)}`);
+  }
   return { ...access, displayName: user.displayName };
 }
 

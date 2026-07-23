@@ -348,32 +348,65 @@ export function AdminDealerForm() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [action, setAction] = useState("create_with_account");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSubmitting(true); setMessage(""); setError("");
     try {
       const response = await fetch("/api/admin/dealers", { method: "POST", body: new FormData(event.currentTarget) });
-      const result = await response.json() as { error?: string; dealerCode?: string; status?: string };
+      const result = await response.json() as { error?: string; dealerCode?: string; status?: string; accountEmail?: string };
       if (!response.ok || !result.dealerCode) throw new Error(result.error || "ไม่สามารถจัดการ Dealer ได้");
-      setMessage(`${result.dealerCode} · ${result.status}`); event.currentTarget.reset();
+      setMessage(`${result.dealerCode} · ${result.accountEmail ? `${result.accountEmail} · ` : ""}${result.status}`);
+      event.currentTarget.reset();
+      setTemporaryPassword("");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "ไม่สามารถจัดการ Dealer ได้"); }
     finally { setSubmitting(false); }
   }
 
+  const createsDealer = action === "create" || action === "create_with_account";
+  const usesAccount = action === "create_with_account" || action === "assign_account" || action === "reset_password" || action === "set_account_status";
+  const usesPassword = action === "create_with_account" || action === "reset_password";
+
   return <form className="form-grid" onSubmit={submit}>
-    <label>การดำเนินการ<select name="action" required defaultValue="create"><option value="create">สร้าง Dealer (สถานะ pending)</option><option value="set_status">เปลี่ยนสถานะ</option><option value="assign_account">ผูกบัญชีผู้ใช้</option></select></label>
+    <label className="field-wide">การดำเนินการ<select name="action" required value={action} onChange={(event) => { setAction(event.target.value); setMessage(""); setError(""); }}>
+      <option value="create_with_account">สร้าง Dealer พร้อมบัญชี Login (แนะนำ)</option>
+      <option value="create">สร้างเฉพาะ Dealer (สถานะ Pending)</option>
+      <option value="set_status">เปลี่ยนสถานะ Dealer</option>
+      <option value="assign_account">ผูกบัญชีที่มีอยู่แล้ว</option>
+      <option value="reset_password">Reset Password</option>
+      <option value="set_account_status">Suspend / Reactivate บัญชี</option>
+    </select></label>
     <Field name="dealerCode" label="Dealer code" placeholder="DLR-001" required />
-    <Field name="name" label="ชื่อร้าน (เมื่อสร้าง)" placeholder="NEXS Authorized Dealer" />
-    <Field name="province" label="จังหวัด (เมื่อสร้าง)" placeholder="Bangkok" />
-    <Field name="contactName" label="ผู้ติดต่อ (เมื่อสร้าง)" placeholder="ชื่อผู้ดูแลร้าน" />
-    <Field name="phone" label="เบอร์โทรศัพท์ (เมื่อสร้าง)" placeholder="02 xxx xxxx" />
-    <Field name="email" label="อีเมลร้าน (ไม่บังคับ)" placeholder="dealer@example.com" type="email" />
-    <Field name="certificationTier" label="ระดับการรับรอง (ไม่บังคับ)" placeholder="authorized" />
-    <label>สถานะใหม่<select name="status" defaultValue="active"><option value="active">Active</option><option value="suspended">Suspended</option></select></label>
-    <Field name="accountEmail" label="อีเมลบัญชี (เมื่อผูกบัญชี)" placeholder="user@example.com" type="email" />
+    {createsDealer && <>
+      <Field name="name" label="ชื่อร้าน" placeholder="NEXS Authorized Dealer" required />
+      <Field name="province" label="จังหวัด" placeholder="Bangkok" required />
+      <Field name="contactName" label="ผู้ติดต่อ" placeholder="ชื่อผู้ดูแลร้าน" required />
+      <Field name="phone" label="เบอร์โทรศัพท์" placeholder="02 xxx xxxx" required />
+      <Field name="email" label="อีเมลร้าน (ไม่บังคับ)" placeholder="dealer@example.com" type="email" />
+      <Field name="certificationTier" label="ระดับการรับรอง (ไม่บังคับ)" placeholder="authorized" />
+    </>}
+    {action === "set_status" && <label>สถานะ Dealer<select name="status" defaultValue="active"><option value="active">Active</option><option value="suspended">Suspended</option></select></label>}
+    {usesAccount && <Field name="accountEmail" label="Username / อีเมลบัญชี" placeholder="user@example.com" type="email" required />}
+    {action === "create_with_account" && <Field name="displayName" label="ชื่อผู้ใช้งาน" placeholder="ชื่อผู้ดูแลร้าน" required />}
+    {usesPassword && <label>รหัสผ่านชั่วคราว
+      <div className="password-generate-row">
+        <input name="temporaryPassword" type="text" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} minLength={12} maxLength={128} autoComplete="off" required />
+        <button type="button" onClick={() => setTemporaryPassword(generateTemporaryPassword())}>สร้างรหัส</button>
+      </div>
+      <small>อย่างน้อย 12 ตัว มีตัวอักษรและตัวเลข ระบบจะบังคับให้ Dealer เปลี่ยนเมื่อเข้าสู่ระบบครั้งแรก</small>
+    </label>}
+    {action === "set_account_status" && <label>สถานะบัญชี<select name="accountStatus" defaultValue="active"><option value="active">Active</option><option value="suspended">Suspended</option></select></label>}
+    {action === "create_with_account" && <p className="field-wide form-note">Dealer และบัญชีจะ Active ทันที กรุณาส่ง Username และรหัสผ่านชั่วคราวให้ผู้รับอย่างปลอดภัย รหัสผ่านจะไม่ถูกแสดงอีกหลังบันทึก</p>}
     {error && <p className="field-wide submit-error" role="alert">{error}</p>}{message && <p className="field-wide submit-success" role="status">{message}</p>}
     <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึก..." : "บันทึก Dealer →"}</button>
   </form>;
+}
+
+function generateTemporaryPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(14));
+  return `N7${Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("")}`;
 }
 
 export function AdminProductForm() {
