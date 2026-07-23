@@ -125,7 +125,7 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
 
   if (kind === "dealer-register") return (
     <form className="form-grid" onSubmit={submit}>
-      <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" required />
+      <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required />
       <Field name="installDate" label="วันที่ติดตั้ง" type="date" required />
       <Field name="customerName" label="ชื่อลูกค้า" placeholder="ชื่อ-นามสกุล" required />
       <Field name="customerPhone" label="เบอร์โทรศัพท์" placeholder="08x xxx xxxx" required />

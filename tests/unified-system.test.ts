@@ -74,6 +74,20 @@ describe("unified NEXS production system", () => {
     expect(safeReturnPath("//evil.example/steal")).toBe("/dealer");
     expect(safeReturnPath("/api/auth/logout")).toBe("/dealer");
     expect(safeReturnPath("/admin?tab=warranties")).toBe("/admin?tab=warranties");
+    expect(safeReturnPath("/dealer/register-warranty?serial=B-729KDG4185063X")).toBe("/dealer/register-warranty?serial=B-729KDG4185063X");
+  });
+
+  it("preserves an unregistered QR serial through Dealer login and registration", async () => {
+    const [publicCard, dealerPage, dealerForm] = await Promise.all([
+      readFile("src/app/r/[serial]/page.tsx", "utf8"),
+      readFile("src/app/dealer/[[...path]]/page.tsx", "utf8"),
+      readFile("src/app/client-ui.tsx", "utf8"),
+    ]);
+    expect(publicCard).toContain("/dealer/register-warranty?serial=");
+    expect(publicCard).toContain("ลูกค้าไม่ต้องเปิดใช้งานบัตรด้วยตนเอง");
+    expect(dealerPage).toContain("initialSerial={initialSerial}");
+    expect(dealerPage).toContain("?serial=${encodeURIComponent(initialSerial)}");
+    expect(dealerForm).toContain("defaultValue={initialSerial}");
   });
 
   it("stores private evidence outside public assets and blocks traversal", async () => {

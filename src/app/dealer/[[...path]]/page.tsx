@@ -6,12 +6,18 @@ import { getDealerProfile, getDealerStats, getDealerTasks, getDealerWarranties, 
 
 export const dynamic = "force-dynamic";
 
-export default async function DealerPage({ params }: { params: Promise<{ path?: string[] }> }) {
+type DealerSearchParams = { serial?: string | string[] };
+
+export default async function DealerPage({ params, searchParams }: { params: Promise<{ path?: string[] }>; searchParams: Promise<DealerSearchParams> }) {
   const { path } = await params;
+  const query = await searchParams;
   const section = path?.[0] ?? "dashboard";
-  const access = await requirePartnerAccess("dealer", `/dealer${path?.length ? `/${path.join("/")}` : ""}`);
+  const initialSerial = section === "register-warranty" ? normalizePrefillSerial(query.serial) : "";
+  const dealerPath = `/dealer${path?.length ? `/${path.join("/")}` : ""}`;
+  const returnTo = initialSerial ? `${dealerPath}?serial=${encodeURIComponent(initialSerial)}` : dealerPath;
+  const access = await requirePartnerAccess("dealer", returnTo);
   if (!access) return <AccessDenied role="dealer" />;
-  if (section === "register-warranty") return <DashboardShell role="Dealer" title="ลงทะเบียนบัตรรับประกัน" active="register"><Panel title="Scan or enter Serial" copy="ระบบจริงต้องตรวจ Serial, model code, batch และสถานะก่อนสร้าง Warranty"><DemoForm kind="dealer-register" /></Panel></DashboardShell>;
+  if (section === "register-warranty") return <DashboardShell role="Dealer" title="ลงทะเบียนบัตรรับประกัน" active="register"><Panel title="ตรวจสอบและเปิดบัตรรับประกัน" copy="Serial จาก QR ถูกกรอกไว้ให้แล้ว ระบบจะตรวจรุ่นสินค้า สถานะ และสิทธิ์ Dealer อีกครั้งก่อนสร้าง Warranty"><DemoForm kind="dealer-register" initialSerial={initialSerial} /></Panel></DashboardShell>;
   if (section === "warranties" && path?.[1]) return <DashboardShell role="Dealer" title="รายละเอียดบัตรรับประกัน" active="warranties"><WarrantyDetail detail={await getDealerWarrantyDetail(access.dealerId!, decodeURIComponent(path[1]).toUpperCase())} /></DashboardShell>;
   if (section === "warranties") return <DashboardShell role="Dealer" title="บัตรรับประกันของร้าน" active="warranties"><RecordsTable records={await getDealerWarranties(access.dealerId!)} /></DashboardShell>;
   if (section === "maintenance") return <DashboardShell role="Dealer" title="Maintenance & Inspection" active="maintenance"><Panel title="เพิ่มบันทึกการดูแล" copy="Dealer เห็นและแก้ไขได้เฉพาะ Warranty ของร้านตนเอง"><DemoForm kind="maintenance" /></Panel></DashboardShell>;
@@ -36,3 +42,8 @@ function WarrantyDetail({ detail }: { detail: { warranty: DealerWarrantyRecord; 
 }
 
 function formatPortalDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }).format(date); }
+
+function normalizePrefillSerial(value: string | string[] | undefined) {
+  const serial = (Array.isArray(value) ? value[0] : value)?.trim().toUpperCase().replace(/\s+/g, "") ?? "";
+  return /^[A-Z0-9-]{6,64}$/.test(serial) ? serial : "";
+}
