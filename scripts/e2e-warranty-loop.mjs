@@ -69,6 +69,14 @@ await check("Dealer activates a factory QR with only the installation date", asy
   const form = new FormData();
   form.set("serialCode", serialCode);
   form.set("installDate", "2026-07-23");
+  form.set("maintenanceIncluded", "on");
+  form.set("maintenanceIntervalMonths", "6");
+  form.set("maintenanceVisitLimit", "4");
+  form.set("claimIncluded", "on");
+  form.set("claimPieceLimit", "3");
+  form.set("rewrapIncluded", "on");
+  form.set("rewrapPieceLimit", "2");
+  form.set("planNote", "QA after-sales plan");
   form.append("photos", tinyPng, "qa-installation.png");
   const response = await post("/api/dealer/warranties", form, dealerCookie);
   equal(response.status, 201, await response.clone().text());
@@ -111,7 +119,7 @@ await check("Dealer adds maintenance with a private image", async () => {
   const form = new FormData();
   form.set("serialCode", serialCode);
   form.set("maintenanceDate", "2026-08-23");
-  form.set("maintenanceType", "30-day inspection");
+  form.set("maintenanceType", "maintenance");
   form.set("performedBy", "QA Installer");
   form.set("resultStatus", "passed");
   form.set("note", "QA full-loop maintenance record");
@@ -123,6 +131,38 @@ await check("Dealer adds maintenance with a private image", async () => {
   assert(body.referenceCode?.startsWith("MNT-"), "Maintenance reference was not created");
 });
 
+await check("Dealer records claim and re-wrap usage against the configured limits", async () => {
+  for (const [maintenanceType, piecesCount, serviceScope] of [
+    ["claim", "2", "Front bumper and left door"],
+    ["rewrap", "1", "Right mirror"],
+  ]) {
+    const form = new FormData();
+    form.set("serialCode", serialCode);
+    form.set("maintenanceDate", maintenanceType === "claim" ? "2027-01-10" : "2027-03-15");
+    form.set("maintenanceType", maintenanceType);
+    form.set("piecesCount", piecesCount);
+    form.set("serviceScope", serviceScope);
+    form.set("performedBy", "QA Installer");
+    form.set("resultStatus", "normal");
+    form.set("note", `QA ${maintenanceType} record`);
+    const response = await post("/api/dealer/maintenance", form, dealerCookie);
+    equal(response.status, 201, await response.clone().text());
+  }
+});
+
+await check("Dealer cannot use more claim pieces than the plan allows", async () => {
+  const form = new FormData();
+  form.set("serialCode", serialCode);
+  form.set("maintenanceDate", "2027-04-01");
+  form.set("maintenanceType", "claim");
+  form.set("piecesCount", "2");
+  form.set("serviceScope", "Over-limit test");
+  form.set("performedBy", "QA Installer");
+  form.set("resultStatus", "normal");
+  const response = await post("/api/dealer/maintenance", form, dealerCookie);
+  equal(response.status, 400, await response.clone().text());
+});
+
 await check("Public warranty card is active and hides customer PII", async () => {
   const apiResponse = await get(`/api/warranty/${serialCode}`);
   equal(apiResponse.status, 200);
@@ -130,6 +170,12 @@ await check("Public warranty card is active and hides customer PII", async () =>
   equal(record.status, "active");
   equal(record.serial, serialCode);
   assert(record.vehicle.includes("••••"), "Vehicle plate is not masked");
+  equal(record.benefits.maintenance.used, 1);
+  equal(record.benefits.maintenance.limit, 4);
+  equal(record.benefits.claim.used, 2);
+  equal(record.benefits.rewrap.used, 1);
+  assert(record.serviceHistory.length === 3, "Complete after-sales history is not public");
+  assert(record.nextMaintenance !== "-", "Next maintenance date is missing");
   const cardResponse = await get(`/r/${serialCode}`);
   equal(cardResponse.status, 200);
   const html = await cardResponse.text();

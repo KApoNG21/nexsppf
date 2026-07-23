@@ -51,6 +51,10 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
   const [referenceCode, setReferenceCode] = useState("");
   const [cardPath, setCardPath] = useState("");
   const [profilePath, setProfilePath] = useState("");
+  const [maintenanceIncluded, setMaintenanceIncluded] = useState(true);
+  const [claimIncluded, setClaimIncluded] = useState(false);
+  const [rewrapIncluded, setRewrapIncluded] = useState(false);
+  const [serviceType, setServiceType] = useState("");
   const labels = {
     contact: ["ส่งข้อความ", "เราได้รับข้อมูลแล้ว ทีมงานจะติดต่อกลับตามช่องทางที่ระบุ"],
     support: ["ส่งคำขอช่วยเหลือ", "สร้างคำขอแล้ว เลขอ้างอิง SUP-260722-014"],
@@ -148,6 +152,17 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
       <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required />
       <Field name="installDate" label="วันที่ติดตั้ง" type="date" required />
       <p className="field-wide form-note">กดเปิดใช้งานได้ทันที ลูกค้าจะกรอกชื่อ เบอร์โทร และข้อมูลรถด้วย QR เดิมในขั้นตอนถัดไป</p>
+      <fieldset className="field-wide service-plan-builder">
+        <legend>แพ็กเกจบริการหลังการขายของร้าน</legend>
+        <p>เลือกเฉพาะสิทธิ์ที่ร้านมอบให้ลูกค้ารายนี้ รายการที่ไม่เลือกจะแสดงว่า “ไม่รวมในแพ็กเกจ”</p>
+        <label className="service-plan-toggle"><input name="maintenanceIncluded" type="checkbox" checked={maintenanceIncluded} onChange={(event) => setMaintenanceIncluded(event.target.checked)} /><span><b>Maintenance ตามรอบ</b><small>กำหนดรอบเดือนและจำนวนครั้งทั้งหมด</small></span></label>
+        {maintenanceIncluded && <div className="service-plan-fields"><Field name="maintenanceIntervalMonths" label="ทุกกี่เดือน" type="number" defaultValue="6" required /><Field name="maintenanceVisitLimit" label="ทั้งหมดกี่ครั้ง" type="number" defaultValue="4" required /></div>}
+        <label className="service-plan-toggle"><input name="claimIncluded" type="checkbox" checked={claimIncluded} onChange={(event) => setClaimIncluded(event.target.checked)} /><span><b>สิทธิ์เคลมฟิล์ม</b><small>คิดสิทธิ์ตามจำนวนชิ้นที่ร้านรับผิดชอบ</small></span></label>
+        {claimIncluded && <div className="service-plan-fields"><Field name="claimPieceLimit" label="สิทธิ์เคลมทั้งหมด (ชิ้น)" type="number" defaultValue="3" required /></div>}
+        <label className="service-plan-toggle"><input name="rewrapIncluded" type="checkbox" checked={rewrapIncluded} onChange={(event) => setRewrapIncluded(event.target.checked)} /><span><b>สิทธิ์ Re-wrap</b><small>เปลี่ยนฟิล์มใหม่ตามเงื่อนไขของร้าน</small></span></label>
+        {rewrapIncluded && <div className="service-plan-fields"><Field name="rewrapPieceLimit" label="สิทธิ์ Re-wrap ทั้งหมด (ชิ้น)" type="number" defaultValue="2" required /></div>}
+        <label className="service-plan-note-field">หมายเหตุเงื่อนไข (ไม่บังคับ)<textarea name="planNote" rows={3} placeholder="เช่น ต้องเข้าตรวจตามรอบ และสิทธิ์เป็นไปตามเงื่อนไขของร้าน" maxLength={500} /></label>
+      </fieldset>
       <label className="field-wide file-field">ภาพงานติดตั้ง (ไม่บังคับ)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple /><small>สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB และจัดเก็บแบบ private</small></label>
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
       <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังเปิดใช้งาน..." : `เปิดใช้งาน Serial →`}</button>
@@ -174,8 +189,9 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
     <form className="form-grid" onSubmit={submit}>
       <Field name="serialCode" label="Serial Number" placeholder="ค้นหาบัตรรับประกัน" defaultValue={initialSerial} required />
       <Field name="maintenanceDate" label="วันที่เข้ารับบริการ" type="date" required />
-      <label>ประเภทบริการ<select name="maintenanceType" required defaultValue=""><option value="" disabled>เลือกประเภท</option><option value="maintenance">Maintenance</option><option value="inspection">Inspection</option><option value="after_sales">After-sales support</option></select></label>
+      <label>ประเภทบริการ<select name="maintenanceType" required value={serviceType} onChange={(event) => setServiceType(event.target.value)}><option value="" disabled>เลือกประเภท</option><option value="maintenance">Maintenance ตามรอบ</option><option value="claim">ใช้สิทธิ์เคลมฟิล์ม</option><option value="rewrap">ใช้สิทธิ์ Re-wrap</option><option value="inspection">ตรวจสภาพ</option><option value="after_sales">บริการหลังการขายอื่น ๆ</option></select></label>
       <Field name="performedBy" label="ผู้ดำเนินการ" placeholder="ชื่อช่างหรือผู้ตรวจสภาพ" required />
+      {(serviceType === "claim" || serviceType === "rewrap") && <><Field name="piecesCount" label="จำนวนชิ้นที่ใช้สิทธิ์" type="number" defaultValue="1" required /><Field name="serviceScope" label="ชิ้นส่วน / บริเวณ" placeholder="เช่น กันชนหน้า, ประตูซ้าย" required /></>}
       <label>ผลการตรวจ<select name="resultStatus" required defaultValue=""><option value="" disabled>เลือกผลการตรวจ</option><option value="normal">ปกติ</option><option value="follow_up">ต้องติดตามผล</option><option value="admin_review">ส่ง Admin ตรวจสอบ</option></select></label>
       <Field name="nextRecommendedDate" label="วันที่แนะนำครั้งถัดไป (ไม่บังคับ)" type="date" />
       <label className="field-wide">บันทึก<textarea name="note" rows={4} placeholder="รายละเอียดการดูแล" /></label>

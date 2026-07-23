@@ -10,14 +10,20 @@ const reports = {
   warranties: {
     filename: "nexs-warranties.csv",
     sql: `SELECT w.serial_code, w.product_model_code, d.dealer_code, d.name AS dealer_name,
-      w.vehicle_make, w.vehicle_model, w.install_date, w.expiry_date, w.status, w.created_at
-      FROM warranties w JOIN dealers d ON d.id = w.dealer_id
+      w.vehicle_make, w.vehicle_model, w.install_date, w.expiry_date, w.status,
+      p.maintenance_included, p.maintenance_interval_months, p.maintenance_visit_limit,
+      p.claim_included, p.claim_piece_limit, p.rewrap_included, p.rewrap_piece_limit,
+      p.plan_note, w.created_at
+      FROM warranties w
+      JOIN dealers d ON d.id = w.dealer_id
+      LEFT JOIN warranty_service_plans p ON p.warranty_id = w.id
       ORDER BY w.created_at DESC, w.id DESC`,
   },
   maintenance: {
     filename: "nexs-maintenance.csv",
     sql: `SELECT m.reference_code, w.serial_code, d.dealer_code, m.maintenance_date,
-      m.maintenance_type, m.performed_by, m.result_status, m.next_recommended_date, m.created_at
+      m.maintenance_type, m.pieces_count, m.service_scope, m.performed_by, m.result_status,
+      m.next_recommended_date, m.note, m.created_at
       FROM maintenance_records m
       JOIN warranties w ON w.id = m.warranty_id
       JOIN dealers d ON d.id = m.dealer_id

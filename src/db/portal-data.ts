@@ -30,7 +30,21 @@ export type DealerWarrantyDetail = {
   status: string;
 };
 
-export type DealerMaintenanceItem = { id: number; reference_code: string; maintenance_date: string; maintenance_type: string; performed_by: string | null; result_status: string; note: string | null };
+export type DealerMaintenanceItem = { id: number; reference_code: string; maintenance_date: string; maintenance_type: string; performed_by: string | null; result_status: string; note: string | null; next_recommended_date: string | null; pieces_count: number; service_scope: string | null };
+export type DealerServicePlan = {
+  maintenance_included: boolean;
+  maintenance_interval_months: number | null;
+  maintenance_visit_limit: number | null;
+  maintenance_used: number;
+  claim_included: boolean;
+  claim_piece_limit: number | null;
+  claim_used: number;
+  rewrap_included: boolean;
+  rewrap_piece_limit: number | null;
+  rewrap_used: number;
+  plan_note: string | null;
+  next_recommended_date: string | null;
+};
 export type DealerMediaItem = { id: number; original_name: string; content_type: string; size_bytes: number };
 export type DealerProfile = {
   dealer_code: string;
@@ -53,7 +67,19 @@ async function count(sql: string, ...bindings: unknown[]): Promise<number> {
 export async function getDealerStats(dealerId: number): Promise<PortalStats> {
   const [active, maintenanceDue, openSupport, total] = await Promise.all([
     count("SELECT COUNT(*) AS count FROM warranties WHERE dealer_id = ? AND status = 'active'", dealerId),
-    count("SELECT COUNT(*) AS count FROM maintenance_records WHERE dealer_id = ? AND next_recommended_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'", dealerId),
+    count(`
+      SELECT COUNT(*) AS count
+      FROM warranties w
+      JOIN warranty_service_plans p ON p.warranty_id = w.id AND p.maintenance_included
+      WHERE w.dealer_id = ? AND w.status IN ('active', 'pending_customer')
+        AND COALESCE(
+          (SELECT m.next_recommended_date FROM maintenance_records m
+           WHERE m.warranty_id = w.id AND m.next_recommended_date IS NOT NULL
+           ORDER BY m.maintenance_date DESC, m.id DESC LIMIT 1),
+          (w.install_date + make_interval(months => p.maintenance_interval_months))::date
+        ) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+        AND (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = w.id AND m.maintenance_type = 'maintenance') < p.maintenance_visit_limit
+    `, dealerId),
     count(`SELECT COUNT(*) AS count FROM (
       SELECT id FROM support_requests WHERE assigned_dealer_id = ? AND status NOT IN ('closed','rejected')
       UNION ALL
@@ -102,14 +128,26 @@ export async function getDealerProfile(dealerId: number): Promise<DealerProfile 
   `).bind(dealerId).first<DealerProfile>();
 }
 
-export async function getDealerWarrantyDetail(dealerId: number, serialCode: string): Promise<{ warranty: DealerWarrantyDetail; maintenance: DealerMaintenanceItem[]; media: DealerMediaItem[] } | null> {
+export async function getDealerWarrantyDetail(dealerId: number, serialCode: string): Promise<{ warranty: DealerWarrantyDetail; plan: DealerServicePlan | null; maintenance: DealerMaintenanceItem[]; media: DealerMediaItem[] } | null> {
   const warranty = await env.DB.prepare(`SELECT id, serial_code, product_model_code, customer_name, customer_phone, customer_email, vehicle_make, vehicle_model, vehicle_plate, install_date, expiry_date, status FROM warranties WHERE dealer_id = ? AND serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
   if (!warranty) return null;
-  const [maintenance, media] = await Promise.all([
-    env.DB.prepare(`SELECT id, reference_code, maintenance_date, maintenance_type, performed_by, result_status, note FROM maintenance_records WHERE warranty_id = ? AND dealer_id = ? ORDER BY maintenance_date DESC`).bind(warranty.id, dealerId).all<DealerMaintenanceItem>(),
+  const [plan, maintenance, media] = await Promise.all([
+    env.DB.prepare(`
+      SELECT p.maintenance_included, p.maintenance_interval_months, p.maintenance_visit_limit,
+        p.claim_included, p.claim_piece_limit, p.rewrap_included, p.rewrap_piece_limit, p.plan_note,
+        (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'maintenance') AS maintenance_used,
+        (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'claim') AS claim_used,
+        (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'rewrap') AS rewrap_used,
+        COALESCE(
+          (SELECT m.next_recommended_date FROM maintenance_records m WHERE m.warranty_id = ? AND m.next_recommended_date IS NOT NULL ORDER BY m.maintenance_date DESC, m.id DESC LIMIT 1),
+          CASE WHEN p.maintenance_included THEN (?::date + make_interval(months => p.maintenance_interval_months))::date ELSE NULL END
+        ) AS next_recommended_date
+      FROM warranty_service_plans p WHERE p.warranty_id = ?
+    `).bind(warranty.id, warranty.id, warranty.id, warranty.id, warranty.install_date, warranty.id).first<DealerServicePlan>(),
+    env.DB.prepare(`SELECT id, reference_code, maintenance_date, maintenance_type, performed_by, result_status, note, next_recommended_date, pieces_count, service_scope FROM maintenance_records WHERE warranty_id = ? AND dealer_id = ? ORDER BY maintenance_date DESC, id DESC`).bind(warranty.id, dealerId).all<DealerMaintenanceItem>(),
     env.DB.prepare(`SELECT id, original_name, content_type, size_bytes FROM media_assets WHERE (owner_type = 'warranty' AND owner_reference = ?) OR (owner_type = 'maintenance' AND owner_reference IN (SELECT reference_code FROM maintenance_records WHERE warranty_id = ? AND dealer_id = ?)) ORDER BY created_at DESC`).bind(serialCode, warranty.id, dealerId).all<DealerMediaItem>(),
   ]);
-  return { warranty, maintenance: maintenance.results ?? [], media: media.results ?? [] };
+  return { warranty, plan: plan ?? null, maintenance: maintenance.results ?? [], media: media.results ?? [] };
 }
 
 export async function getAdminStats(): Promise<PortalStats> {

@@ -1,6 +1,26 @@
 import { env } from "@/lib/server-env";
+import { serviceTypeLabel } from "@/lib/after-sales";
 
 export type PublicWarrantyStatus = "active" | "not-registered" | "profile-required" | "expired" | "under-review" | "invalid";
+
+export type PublicServiceBenefit = {
+  included: boolean;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  intervalMonths?: number | null;
+};
+
+export type PublicServiceHistory = {
+  reference: string;
+  type: string;
+  label: string;
+  date: string;
+  pieces: number;
+  scope: string | null;
+  result: string;
+  nextDate: string;
+};
 
 export type PublicWarrantyRecord = {
   status: PublicWarrantyStatus;
@@ -11,9 +31,18 @@ export type PublicWarrantyRecord = {
   expiry: string;
   dealer: string;
   maintenance: string;
+  nextMaintenance: string;
+  planNote: string | null;
+  benefits: {
+    maintenance: PublicServiceBenefit;
+    claim: PublicServiceBenefit;
+    rewrap: PublicServiceBenefit;
+  };
+  serviceHistory: PublicServiceHistory[];
 };
 
 type PublicWarrantyRow = {
+  warranty_id: number | null;
   serial_code: string;
   serial_model_code: string;
   serial_status: string;
@@ -27,12 +56,43 @@ type PublicWarrantyRow = {
   product_name: string | null;
   dealer_name: string | null;
   dealer_province: string | null;
-  maintenance_count: number;
 };
+
+type PlanRow = {
+  maintenance_included: boolean;
+  maintenance_interval_months: number | null;
+  maintenance_visit_limit: number | null;
+  claim_included: boolean;
+  claim_piece_limit: number | null;
+  rewrap_included: boolean;
+  rewrap_piece_limit: number | null;
+  plan_note: string | null;
+  maintenance_used: number;
+  claim_used: number;
+  rewrap_used: number;
+  next_recommended_date: string | Date | null;
+};
+
+type HistoryRow = {
+  reference_code: string;
+  maintenance_date: string | Date;
+  maintenance_type: string;
+  result_status: string;
+  next_recommended_date: string | Date | null;
+  pieces_count: number;
+  service_scope: string | null;
+};
+
+const emptyBenefits = () => ({
+  maintenance: { included: false, used: 0, limit: null, remaining: null, intervalMonths: null },
+  claim: { included: false, used: 0, limit: null, remaining: null },
+  rewrap: { included: false, used: 0, limit: null, remaining: null },
+});
 
 export async function findPublicWarranty(serial: string): Promise<PublicWarrantyRecord | null> {
   const row = await env.DB.prepare(`
     SELECT
+      w.id AS warranty_id,
       s.serial_code,
       s.model_code AS serial_model_code,
       s.status AS serial_status,
@@ -45,8 +105,7 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
       w.status AS warranty_status,
       ps.name AS product_name,
       d.name AS dealer_name,
-      d.province AS dealer_province,
-      (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = w.id) AS maintenance_count
+      d.province AS dealer_province
     FROM serials s
     LEFT JOIN warranties w ON w.serial_code = s.serial_code
     LEFT JOIN product_series ps ON ps.model_code = COALESCE(w.product_model_code, s.model_code)
@@ -58,33 +117,77 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
   if (!row || row.serial_status === "invalid") return null;
 
   const product = row.product_name ?? row.product_model_code ?? row.serial_model_code;
+  const base = {
+    product,
+    serial: row.serial_code,
+    install: formatDate(row.install_date),
+    expiry: formatDate(row.expiry_date),
+    dealer: row.dealer_name
+      ? `${row.dealer_name}${row.dealer_province ? ` · ${row.dealer_province}` : ""}`
+      : "NEXS Authorized Dealer",
+    nextMaintenance: "-",
+    planNote: null,
+    benefits: emptyBenefits(),
+    serviceHistory: [],
+  };
   if (!row.warranty_status || row.serial_status === "available") {
-    return {
-      status: "not-registered",
-      product,
-      serial: row.serial_code,
-      vehicle: "ยังไม่ลงทะเบียน",
-      install: "-",
-      expiry: "-",
-      dealer: "-",
-      maintenance: "-",
-    };
+    return { ...base, status: "not-registered", vehicle: "ยังไม่ลงทะเบียน", install: "-", expiry: "-", dealer: "-", maintenance: "-" };
   }
 
   if (row.warranty_status === "pending_customer") {
-    return {
-      status: "profile-required",
-      product,
-      serial: row.serial_code,
-      vehicle: "รอลูกค้ากรอกข้อมูล",
-      install: formatDate(row.install_date),
-      expiry: formatDate(row.expiry_date),
-      dealer: row.dealer_name
-        ? `${row.dealer_name}${row.dealer_province ? ` · ${row.dealer_province}` : ""}`
-        : "NEXS Authorized Dealer",
-      maintenance: row.maintenance_count > 0 ? `${row.maintenance_count} รายการในประวัติบริการ` : "ยังไม่มีรายการบำรุงรักษา",
-    };
+    return { ...base, status: "profile-required", vehicle: "รอลูกค้ากรอกข้อมูล", maintenance: "ยังไม่มีรายการบำรุงรักษา" };
   }
+
+  const [plan, historyResult] = await Promise.all([
+    env.DB.prepare(`
+      SELECT
+        COALESCE(p.maintenance_included, false) AS maintenance_included,
+        p.maintenance_interval_months, p.maintenance_visit_limit,
+        COALESCE(p.claim_included, false) AS claim_included, p.claim_piece_limit,
+        COALESCE(p.rewrap_included, false) AS rewrap_included, p.rewrap_piece_limit,
+        p.plan_note,
+        (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'maintenance') AS maintenance_used,
+        (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'claim') AS claim_used,
+        (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'rewrap') AS rewrap_used,
+        COALESCE(
+          (SELECT m.next_recommended_date FROM maintenance_records m
+           WHERE m.warranty_id = ? AND m.next_recommended_date IS NOT NULL
+           ORDER BY m.maintenance_date DESC, m.id DESC LIMIT 1),
+          CASE WHEN p.maintenance_included
+            THEN (CAST(? AS date) + make_interval(months => p.maintenance_interval_months))::date
+            ELSE NULL END
+        ) AS next_recommended_date
+      FROM warranty_service_plans p
+      WHERE p.warranty_id = ?
+    `).bind(row.warranty_id, row.warranty_id, row.warranty_id, row.warranty_id, dateOnly(row.install_date), row.warranty_id).first<PlanRow>(),
+    env.DB.prepare(`
+      SELECT reference_code, maintenance_date, maintenance_type, result_status,
+        next_recommended_date, pieces_count, service_scope
+      FROM maintenance_records
+      WHERE warranty_id = ?
+      ORDER BY maintenance_date DESC, id DESC
+      LIMIT 50
+    `).bind(row.warranty_id).all<HistoryRow>(),
+  ]);
+
+  const maintenanceUsed = Number(plan?.maintenance_used ?? 0);
+  const claimUsed = Number(plan?.claim_used ?? 0);
+  const rewrapUsed = Number(plan?.rewrap_used ?? 0);
+  const benefits = {
+    maintenance: benefit(Boolean(plan?.maintenance_included), maintenanceUsed, plan?.maintenance_visit_limit, plan?.maintenance_interval_months),
+    claim: benefit(Boolean(plan?.claim_included), claimUsed, plan?.claim_piece_limit),
+    rewrap: benefit(Boolean(plan?.rewrap_included), rewrapUsed, plan?.rewrap_piece_limit),
+  };
+  const history = (historyResult.results ?? []).map((item) => ({
+    reference: item.reference_code,
+    type: item.maintenance_type,
+    label: serviceTypeLabel(item.maintenance_type),
+    date: formatDate(item.maintenance_date),
+    pieces: Number(item.pieces_count ?? 0),
+    scope: item.service_scope,
+    result: resultLabel(item.result_status),
+    nextDate: formatDate(item.next_recommended_date),
+  }));
 
   const expiryDateOnly = dateOnly(row.expiry_date);
   const expiredByDate = expiryDateOnly
@@ -96,20 +199,40 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
       ? "under-review"
       : "active";
 
-  const dealer = row.dealer_name
-    ? `${row.dealer_name}${row.dealer_province ? ` · ${row.dealer_province}` : ""}`
-    : "NEXS Authorized Dealer";
-
   return {
+    ...base,
     status,
-    product,
-    serial: row.serial_code,
+    expiry: status === "under-review" ? "อยู่ระหว่างตรวจสอบ" : base.expiry,
     vehicle: `${[row.vehicle_make, row.vehicle_model].filter(Boolean).join(" ") || "Vehicle"} · ${maskPlate(row.vehicle_plate)}`,
-    install: formatDate(row.install_date),
-    expiry: status === "under-review" ? "อยู่ระหว่างตรวจสอบ" : formatDate(row.expiry_date),
-    dealer,
-    maintenance: row.maintenance_count > 0 ? `${row.maintenance_count} รายการในประวัติบริการ` : "ยังไม่มีรายการบำรุงรักษา",
+    maintenance: benefits.maintenance.included
+      ? `${benefits.maintenance.used}/${benefits.maintenance.limit} ครั้ง`
+      : "ไม่รวมในแพ็กเกจ",
+    nextMaintenance: benefits.maintenance.included ? formatDate(plan?.next_recommended_date ?? null) : "-",
+    planNote: plan?.plan_note ?? null,
+    benefits,
+    serviceHistory: history,
   };
+}
+
+function benefit(included: boolean, used: number, limit: number | null | undefined, intervalMonths?: number | null): PublicServiceBenefit {
+  const normalizedLimit = included && limit != null ? Number(limit) : null;
+  return {
+    included,
+    used,
+    limit: normalizedLimit,
+    remaining: normalizedLimit == null ? null : Math.max(0, normalizedLimit - used),
+    ...(intervalMonths !== undefined ? { intervalMonths: intervalMonths == null ? null : Number(intervalMonths) } : {}),
+  };
+}
+
+function resultLabel(value: string): string {
+  return {
+    normal: "เรียบร้อย",
+    passed: "ผ่านการตรวจ",
+    follow_up: "นัดติดตามผล",
+    admin_review: "ส่งตรวจสอบ",
+    under_review: "อยู่ระหว่างตรวจสอบ",
+  }[value] ?? value;
 }
 
 function formatDate(value: string | Date | null): string {

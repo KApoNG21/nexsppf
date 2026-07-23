@@ -73,8 +73,24 @@ export const maintenanceRecords = sqliteTable("maintenance_records", {
   resultStatus: text("result_status").notNull(),
   note: text("note"),
   nextRecommendedDate: text("next_recommended_date"),
+  piecesCount: integer("pieces_count").notNull().default(0),
+  serviceScope: text("service_scope"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("maintenance_records_reference_uq").on(table.referenceCode)]);
+
+export const warrantyServicePlans = sqliteTable("warranty_service_plans", {
+  warrantyId: integer("warranty_id").primaryKey(),
+  maintenanceIncluded: integer("maintenance_included", { mode: "boolean" }).notNull().default(false),
+  maintenanceIntervalMonths: integer("maintenance_interval_months"),
+  maintenanceVisitLimit: integer("maintenance_visit_limit"),
+  claimIncluded: integer("claim_included", { mode: "boolean" }).notNull().default(false),
+  claimPieceLimit: integer("claim_piece_limit"),
+  rewrapIncluded: integer("rewrap_included", { mode: "boolean" }).notNull().default(false),
+  rewrapPieceLimit: integer("rewrap_piece_limit"),
+  planNote: text("plan_note"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
 
 export const registrationExceptions = sqliteTable("registration_exceptions", {
   id: integer("id").primaryKey({ autoIncrement: true }),

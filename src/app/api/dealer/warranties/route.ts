@@ -1,5 +1,6 @@
 import { env } from "@/lib/server-env";
 import { resolveProductFromSerial } from "@/lib/serial";
+import { parseServicePlan } from "@/lib/after-sales";
 import { authorizePartnerRequest, unauthorizedResponse } from "../../../../db/partner-access";
 import { enforceSameOrigin, fail, normalizeSerial, PartnerValidationError, requiredText, validIsoDate } from "../../_partner-utils";
 
@@ -32,6 +33,12 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const serialCode = normalizeSerial(requiredText(form, "serialCode", " Serial Number", 6, 64));
     const installDate = validIsoDate(requiredText(form, "installDate", "วันที่ติดตั้ง", 10, 10), "วันที่ติดตั้ง");
+    let servicePlan;
+    try {
+      servicePlan = parseServicePlan(form);
+    } catch (error) {
+      throw new PartnerValidationError(error instanceof Error ? error.message : "ข้อมูลแพ็กเกจบริการไม่ถูกต้อง");
+    }
     let factoryProduct: ReturnType<typeof resolveProductFromSerial>;
     try {
       factoryProduct = resolveProductFromSerial(serialCode);
@@ -96,6 +103,24 @@ export async function POST(request: Request) {
           CASE WHEN CAST(? AS integer) IS NULL THEN NULL ELSE (CAST(? AS date) + make_interval(years => CAST(? AS integer)) - INTERVAL '1 day')::date END,
           'pending_customer')
       `).bind(serialCode, actor.dealerId, eligibility.model_code, installDate, eligibility.warranty_years, installDate, eligibility.warranty_years),
+      env.DB.prepare(`
+        INSERT INTO warranty_service_plans
+          (warranty_id, maintenance_included, maintenance_interval_months, maintenance_visit_limit,
+           claim_included, claim_piece_limit, rewrap_included, rewrap_piece_limit, plan_note)
+        SELECT id, ?, ?, ?, ?, ?, ?, ?, ?
+        FROM warranties WHERE serial_code = ? AND dealer_id = ?
+      `).bind(
+        servicePlan.maintenanceIncluded,
+        servicePlan.maintenanceIntervalMonths,
+        servicePlan.maintenanceVisitLimit,
+        servicePlan.claimIncluded,
+        servicePlan.claimPieceLimit,
+        servicePlan.rewrapIncluded,
+        servicePlan.rewrapPieceLimit,
+        servicePlan.planNote,
+        serialCode,
+        actor.dealerId,
+      ),
       env.DB.prepare("UPDATE serials SET status = 'active' WHERE serial_code = ? AND status = 'available' AND EXISTS (SELECT 1 FROM warranties w WHERE w.serial_code = serials.serial_code AND w.dealer_id = ?)").bind(serialCode, actor.dealerId),
       ...photos.map((photo, index) => env.DB.prepare(`
         INSERT INTO media_assets (owner_type, owner_reference, object_key, original_name, content_type, size_bytes)
@@ -107,7 +132,11 @@ export async function POST(request: Request) {
       `).bind(actor.email, serialCode, JSON.stringify({ dealerId: actor.dealerId })),
     ];
     const results = await env.DB.batch(statements);
-    if (Number(results[0]?.meta?.changes ?? 0) !== 1 || Number(results[1]?.meta?.changes ?? 0) !== 1) throw new Error("Warranty registration transaction did not update expected rows");
+    if (
+      Number(results[0]?.meta?.changes ?? 0) !== 1
+      || Number(results[1]?.meta?.changes ?? 0) !== 1
+      || Number(results[2]?.meta?.changes ?? 0) !== 1
+    ) throw new Error("Warranty registration transaction did not update expected rows");
     return Response.json({
       ok: true,
       serialCode,

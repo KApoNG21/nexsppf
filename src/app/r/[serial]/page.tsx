@@ -22,19 +22,35 @@ export default async function WarrantyCardPage({ params }: { params: Promise<{ s
       return <WarrantyState status="invalid" serial={key} />;
     }
   }
-  if (record.status !== "active") return <WarrantyState status={record.status} serial={record.serial} record={record} />;
+  if (record.status !== "active" && record.status !== "expired") return <WarrantyState status={record.status} serial={record.serial} record={record} />;
+  const expired = record.status === "expired";
   return (
     <div className="card-public-page">
       <header><Link href="/"><Logo /></Link><Link href="/warranty">ตรวจสอบ Serial อื่น</Link></header>
       <main className="digital-card-wrap">
-        <section className="digital-card active-card">
+        <section className={`digital-card ${expired ? "expired-card" : "active-card"}`}>
           <div className="card-brand"><Logo /><span>DIGITAL WARRANTY</span></div>
-          <StatusPill status="active" />
+          <StatusPill status={record.status} />
+          {expired && <p className="expired-card-note">บัตรหมดอายุแล้ว แต่ประวัติบริการยังตรวจสอบได้ตามปกติ</p>}
           <h1>{record.product}</h1>
           <p className="serial-label">SERIAL NUMBER</p><strong className="serial-value">{record.serial}</strong>
-          <dl><CardRow label="รถ" value={record.vehicle} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="ศูนย์ติดตั้ง" value={record.dealer} /></dl>
-          <div className="maintenance-summary"><span>Maintenance Summary</span><b>{record.maintenance}</b></div>
-          <div className="card-actions"><ArrowLink href={`/support/inspection?serial=${encodeURIComponent(record.serial)}`}>นัดตรวจสภาพ</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodeURIComponent(record.serial)}`}>ติดต่อเรื่องรับประกัน</ArrowLink><ArrowLink secondary href={`/dealer/maintenance?serial=${encodeURIComponent(record.serial)}`}>Dealer บันทึก Maintenance</ArrowLink></div>
+          <dl><CardRow label="รถ" value={record.vehicle} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="ดูแลครั้งถัดไป" value={record.nextMaintenance} /><CardRow label="ศูนย์ติดตั้ง" value={record.dealer} /></dl>
+          <div className="service-benefit-grid">
+            <BenefitCard label="Maintenance" unit="ครั้ง" benefit={record.benefits.maintenance} detail={record.benefits.maintenance.intervalMonths ? `ทุก ${record.benefits.maintenance.intervalMonths} เดือน` : undefined} />
+            <BenefitCard label="เคลม" unit="ชิ้น" benefit={record.benefits.claim} />
+            <BenefitCard label="Re-wrap" unit="ชิ้น" benefit={record.benefits.rewrap} />
+          </div>
+          {record.planNote && <p className="service-plan-note"><b>เงื่อนไขจากร้าน</b>{record.planNote}</p>}
+          <section className="public-service-history">
+            <header><div><p className="eyebrow">AFTER-SALES HISTORY</p><h2>ประวัติการดูแลทั้งหมด</h2></div><span>{record.serviceHistory.length} รายการ</span></header>
+            {record.serviceHistory.length ? record.serviceHistory.map((item) => (
+              <article key={item.reference}>
+                <span className={`service-type service-type-${item.type}`}>{item.label}</span>
+                <div><b>{item.date}{item.pieces ? ` · ${item.pieces} ชิ้น` : ""}</b><p>{item.scope || item.result}</p>{item.nextDate !== "-" && <small>นัดครั้งถัดไป {item.nextDate}</small>}</div>
+              </article>
+            )) : <p className="empty-service-history">ยังไม่มีประวัติการเข้ารับบริการ</p>}
+          </section>
+          <div className="card-actions"><ArrowLink href={`/support/inspection?serial=${encodeURIComponent(record.serial)}`}>นัดตรวจสภาพ</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodeURIComponent(record.serial)}`}>ติดต่อเรื่องรับประกัน</ArrowLink>{!expired && <ArrowLink secondary href={`/dealer/maintenance?serial=${encodeURIComponent(record.serial)}`}>Dealer บันทึก Maintenance</ArrowLink>}</div>
           <small>ข้อมูลลูกค้าและทะเบียนรถแสดงแบบปกปิดตามหลัก PDPA</small>
         </section>
         <aside><p className="eyebrow slash">VERIFIED RECORD</p><h2>บัตรรับประกันดิจิทัลของ NEXS</h2><p>QR ใบเดียวใช้ตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการหลังการขายได้ตลอดอายุการใช้งาน</p><WarrantyJourney current="active" /><ol><li>ข้อมูลส่วนตัวไม่แสดงต่อสาธารณะ</li><li>Dealer บันทึก Maintenance จาก QR เดิม</li><li>ส่งคำขอตรวจสภาพหรือรับประกันได้ทันที</li></ol><Link href="/warranty-policy">อ่านเงื่อนไขรับประกัน →</Link></aside>
@@ -73,3 +89,7 @@ function WarrantyState({ status, serial, record }: { status: string; serial: str
 }
 
 function CardRow({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
+
+function BenefitCard({ label, unit, benefit, detail }: { label: string; unit: string; benefit: PublicWarrantyRecord["benefits"]["maintenance"]; detail?: string }) {
+  return <article className={benefit.included ? "benefit-included" : "benefit-not-included"}><span>{label}</span>{benefit.included ? <><b>{benefit.used}/{benefit.limit} {unit}</b><small>คงเหลือ {benefit.remaining} {unit}{detail ? ` · ${detail}` : ""}</small></> : <><b>ไม่รวม</b><small>ร้านไม่ได้ระบุสิทธิ์นี้</small></>}</article>;
+}
