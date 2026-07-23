@@ -1,6 +1,6 @@
 const baseUrl = (process.env.E2E_BASE_URL || "http://127.0.0.1:3011").replace(/\/$/, "");
 const password = required("E2E_PASSWORD");
-const serialCode = process.env.E2E_SERIAL || "QA-PRO-20260723-001";
+const serialCode = process.env.E2E_SERIAL || "P-QA20260723001";
 const dealerEmail = process.env.E2E_DEALER_EMAIL || "qa-dealer@nexs.local";
 const otherDealerEmail = process.env.E2E_OTHER_DEALER_EMAIL || "qa-dealer2@nexs.local";
 const adminEmail = process.env.E2E_ADMIN_EMAIL || "qa-admin@nexs.local";
@@ -65,33 +65,42 @@ await check("Dealer cannot access Admin portal", async () => {
   assert(!html.includes("Operations Overview"), "Dealer reached the Admin dashboard");
 });
 
-await check("Dealer registers a warranty with private installation image", async () => {
+await check("Dealer activates a factory QR with only the installation date", async () => {
   const form = new FormData();
   form.set("serialCode", serialCode);
   form.set("installDate", "2026-07-23");
-  form.set("customerName", "QA Customer Fullname");
-  form.set("customerPhone", "0891234567");
-  form.set("customerEmail", "qa-customer@nexs.local");
-  form.set("vehicleMake", "Porsche");
-  form.set("vehicleModel", "911 Carrera");
-  form.set("vehiclePlate", "กข 1234");
   form.append("photos", tinyPng, "qa-installation.png");
   const response = await post("/api/dealer/warranties", form, dealerCookie);
   equal(response.status, 201, await response.clone().text());
   const body = await response.json();
   equal(body.serialCode, serialCode);
   equal(body.cardPath, `/r/${serialCode}`);
+  equal(body.profilePath, `/warranty/complete?serial=${serialCode}`);
+  const pending = await (await get(`/api/warranty/${serialCode}`)).json();
+  equal(pending.status, "profile-required");
+});
+
+await check("Customer completes the warranty profile from the same QR", async () => {
+  const form = new FormData();
+  form.set("serialCode", serialCode);
+  form.set("customerName", "QA Customer Fullname");
+  form.set("customerPhone", "0891234567");
+  form.set("customerEmail", "qa-customer@nexs.local");
+  form.set("vehicleMake", "Porsche");
+  form.set("vehicleModel", "911 Carrera");
+  form.set("vehiclePlate", "กข 1234");
+  form.set("consent", "on");
+  form.set("company", "");
+  const response = await post("/api/warranty/complete", form);
+  equal(response.status, 200, await response.clone().text());
+  const body = await response.json();
+  equal(body.status, "active");
 });
 
 await check("Duplicate registration becomes an exception", async () => {
   const form = new FormData();
   form.set("serialCode", serialCode);
   form.set("installDate", "2026-07-23");
-  form.set("customerName", "Duplicate Customer");
-  form.set("customerPhone", "0891234567");
-  form.set("vehicleMake", "Porsche");
-  form.set("vehicleModel", "911");
-  form.set("vehiclePlate", "กข 1234");
   const response = await post("/api/dealer/warranties", form, dealerCookie);
   equal(response.status, 409, await response.clone().text());
   const body = await response.json();

@@ -15,19 +15,18 @@ export function enforceSameOrigin(request: Request): Response | null {
 }
 
 export function publicRequestUrl(request: Request, path: string): URL {
-  const configuredBase = process.env.NEXT_PUBLIC_BASE_URL;
-  if (configuredBase) {
-    try {
-      return new URL(path, configuredBase);
-    } catch {
-      // Fall through to the request headers when the optional base URL is malformed.
-    }
-  }
   const protocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim()
     || new URL(request.url).protocol.replace(":", "");
   const host = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
     || request.headers.get("host")
-    || new URL(request.url).host;
+    || new URL(request.url).host
+    || (() => {
+      try {
+        return new URL(process.env.NEXT_PUBLIC_BASE_URL ?? "").host;
+      } catch {
+        return "";
+      }
+    })();
   return new URL(path, `${protocol}://${host}`);
 }
 

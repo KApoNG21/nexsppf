@@ -1,6 +1,6 @@
 import { env } from "@/lib/server-env";
 
-export type PublicWarrantyStatus = "active" | "not-registered" | "expired" | "under-review" | "invalid";
+export type PublicWarrantyStatus = "active" | "not-registered" | "profile-required" | "expired" | "under-review" | "invalid";
 
 export type PublicWarrantyRecord = {
   status: PublicWarrantyStatus;
@@ -68,6 +68,21 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
       expiry: "-",
       dealer: "-",
       maintenance: "-",
+    };
+  }
+
+  if (row.warranty_status === "pending_customer") {
+    return {
+      status: "profile-required",
+      product,
+      serial: row.serial_code,
+      vehicle: "รอลูกค้ากรอกข้อมูล",
+      install: formatDate(row.install_date),
+      expiry: formatDate(row.expiry_date),
+      dealer: row.dealer_name
+        ? `${row.dealer_name}${row.dealer_province ? ` · ${row.dealer_province}` : ""}`
+        : "NEXS Authorized Dealer",
+      maintenance: row.maintenance_count > 0 ? `${row.maintenance_count} รายการในประวัติบริการ` : "ยังไม่มีรายการบำรุงรักษา",
     };
   }
 

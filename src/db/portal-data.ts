@@ -19,12 +19,12 @@ export type DealerWarrantyDetail = {
   id: number;
   serial_code: string;
   product_model_code: string;
-  customer_name: string;
-  customer_phone: string;
+  customer_name: string | null;
+  customer_phone: string | null;
   customer_email: string | null;
-  vehicle_make: string;
-  vehicle_model: string;
-  vehicle_plate: string;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_plate: string | null;
   install_date: string;
   expiry_date: string | null;
   status: string;
@@ -67,7 +67,8 @@ export async function getDealerStats(dealerId: number): Promise<PortalStats> {
 export async function getDealerWarranties(dealerId: number, limit = 20): Promise<PortalRecord[]> {
   const result = await env.DB.prepare(`
     SELECT w.serial_code AS reference, w.product_model_code AS subject,
-      w.vehicle_make || ' ' || w.vehicle_model AS detail, w.install_date AS date, w.status
+      COALESCE(NULLIF(TRIM(COALESCE(w.vehicle_make, '') || ' ' || COALESCE(w.vehicle_model, '')), ''), 'รอลูกค้ากรอกข้อมูล') AS detail,
+      w.install_date AS date, w.status
     FROM warranties w
     WHERE w.dealer_id = ?
     ORDER BY w.created_at DESC

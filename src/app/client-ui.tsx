@@ -44,17 +44,19 @@ export function WarrantyLookup({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact" | "support" | "inspection" | "dealer-register" | "maintenance" | "serial-import" | "policy" | "profile"; initialSerial?: string; profile?: DealerProfileInput }) {
+export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact" | "support" | "inspection" | "dealer-register" | "customer-complete" | "maintenance" | "serial-import" | "policy" | "profile"; initialSerial?: string; profile?: DealerProfileInput }) {
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [referenceCode, setReferenceCode] = useState("");
   const [cardPath, setCardPath] = useState("");
+  const [profilePath, setProfilePath] = useState("");
   const labels = {
     contact: ["ส่งข้อความ", "เราได้รับข้อมูลแล้ว ทีมงานจะติดต่อกลับตามช่องทางที่ระบุ"],
     support: ["ส่งคำขอช่วยเหลือ", "สร้างคำขอแล้ว เลขอ้างอิง SUP-260722-014"],
     inspection: ["ส่งคำขอตรวจสภาพ", "สร้างคำขอแล้ว เลขอ้างอิง INS-260722-008"],
     "dealer-register": ["ลงทะเบียนบัตรรับประกัน", "ตรวจสอบข้อมูลครบแล้ว สร้างบัตรรับประกันตัวอย่างเรียบร้อย"],
+    "customer-complete": ["ยืนยันข้อมูลและเปิดบัตร", "ข้อมูลครบแล้ว บัตรรับประกันพร้อมใช้งาน"],
     maintenance: ["บันทึกการดูแล", "บันทึก Maintenance Record แล้ว"],
     "serial-import": ["ตรวจสอบไฟล์นำเข้า", "อ่านไฟล์ตัวอย่างแล้ว: 48 รายการพร้อมใช้, 2 รายการต้องตรวจสอบ"],
     policy: ["บันทึกร่าง Policy", "บันทึกร่างแล้ว (ยังไม่เผยแพร่สู่เว็บไซต์สาธารณะ)"],
@@ -64,15 +66,15 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (kind === "contact" || kind === "support" || kind === "inspection" || kind === "dealer-register" || kind === "maintenance" || kind === "serial-import" || kind === "policy" || kind === "profile") {
+    if (kind === "contact" || kind === "support" || kind === "inspection" || kind === "dealer-register" || kind === "customer-complete" || kind === "maintenance" || kind === "serial-import" || kind === "policy" || kind === "profile") {
       setSubmitting(true);
       setSubmitError("");
       const form = new FormData(event.currentTarget);
       if (kind === "contact" || kind === "support" || kind === "inspection") form.set("kind", kind);
-      const endpoint = kind === "dealer-register" ? "/api/dealer/warranties" : kind === "maintenance" ? "/api/dealer/maintenance" : kind === "serial-import" ? "/api/admin/serials/import" : kind === "policy" ? "/api/admin/policies" : kind === "profile" ? "/api/dealer/profile" : "/api/public-requests";
+      const endpoint = kind === "dealer-register" ? "/api/dealer/warranties" : kind === "customer-complete" ? "/api/warranty/complete" : kind === "maintenance" ? "/api/dealer/maintenance" : kind === "serial-import" ? "/api/admin/serials/import" : kind === "policy" ? "/api/admin/policies" : kind === "profile" ? "/api/dealer/profile" : "/api/public-requests";
       try {
         const response = await fetch(endpoint, { method: "POST", body: form });
-        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; cardPath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
+        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; cardPath?: string; profilePath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
         const successfulReference = result.referenceCode ?? result.serialCode ?? result.policyKey ?? (result.recordId ? String(result.recordId) : result.dealerId ? `Dealer ${result.dealerId}` : result.imported !== undefined ? `${result.imported} serials` : result.total !== undefined ? `${result.valid ?? 0}/${result.total} rows valid` : "");
         const rowErrors = result.errors?.slice(0, 5).map((item) => `แถว ${item.row}: ${item.message}`).join(" · ");
         if (!response.ok || !successfulReference) {
@@ -81,6 +83,7 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
         }
         setReferenceCode(successfulReference);
         setCardPath(result.cardPath ?? "");
+        setProfilePath(result.profilePath ?? "");
         setSent(true);
       } catch (error) {
         setSubmitError(error instanceof Error ? error.message : "ไม่สามารถส่งคำขอได้ กรุณาลองใหม่อีกครั้ง");
@@ -92,7 +95,24 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
     setSent(true);
   }
 
-  if (sent) return <div className={`success-panel ${cardPath ? "success-panel-card" : ""}`}><b>✓</b><div><h3>{referenceCode ? "บันทึกข้อมูลเรียบร้อยแล้ว" : "ดำเนินการสำเร็จในโหมดตัวอย่าง"}</h3><p>{referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>{cardPath && <WarrantyQr cardPath={cardPath} serial={referenceCode} compact />}<button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); }}>กรอกข้อมูลใหม่</button></div></div>;
+  if (sent) {
+    const activationDone = kind === "dealer-register";
+    const customerDone = kind === "customer-complete";
+    return (
+      <div className={`success-panel ${cardPath ? "success-panel-card" : ""}`}>
+        <b>✓</b>
+        <div>
+          <p className="eyebrow">{activationDone ? "SERIAL ACTIVATED" : customerDone ? "WARRANTY ACTIVE" : "SAVED"}</p>
+          <h3>{activationDone ? "เปิด Serial เรียบร้อยแล้ว" : customerDone ? "บัตรรับประกันพร้อมใช้งาน" : referenceCode ? "บันทึกข้อมูลเรียบร้อยแล้ว" : "ดำเนินการสำเร็จ"}</h3>
+          <p>{activationDone ? <>Serial <strong>{referenceCode}</strong> เริ่มนับอายุรับประกันแล้ว<br />ให้ลูกค้าสแกน QR เดิมและกรอกข้อมูลเจ้าของรถในขั้นตอนถัดไป</> : customerDone ? <>ข้อมูลถูกบันทึกแล้ว ใช้ QR เดิมตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการได้ตลอด</> : referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>
+          {profilePath && <a className="button button-primary success-next-link" href={profilePath}>เปิดหน้ากรอกข้อมูลลูกค้า <span>→</span></a>}
+          {customerDone && cardPath && <a className="button button-primary success-next-link" href={cardPath}>ดูบัตรรับประกัน <span>→</span></a>}
+          {cardPath && <WarrantyQr cardPath={cardPath} serial={referenceCode} compact />}
+          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); setProfilePath(""); }}>{activationDone ? "เปิด Serial ใบถัดไป" : "กรอกข้อมูลใหม่"}</button>
+        </div>
+      </div>
+    );
+  }
 
   if (kind === "contact") return (
     <form className="form-grid" onSubmit={submit}>
@@ -127,21 +147,32 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
     <form className="form-grid" onSubmit={submit}>
       <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required />
       <Field name="installDate" label="วันที่ติดตั้ง" type="date" required />
-      <Field name="customerName" label="ชื่อลูกค้า" placeholder="ชื่อ-นามสกุล" required />
+      <p className="field-wide form-note">กดเปิดใช้งานได้ทันที ลูกค้าจะกรอกชื่อ เบอร์โทร และข้อมูลรถด้วย QR เดิมในขั้นตอนถัดไป</p>
+      <label className="field-wide file-field">ภาพงานติดตั้ง (ไม่บังคับ)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple /><small>สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB และจัดเก็บแบบ private</small></label>
+      {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
+      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังเปิดใช้งาน..." : `เปิดใช้งาน Serial →`}</button>
+    </form>
+  );
+
+  if (kind === "customer-complete") return (
+    <form className="form-grid" onSubmit={submit}>
+      <Field name="serialCode" label="Serial Number" placeholder="Serial จาก QR" defaultValue={initialSerial} required readOnly={Boolean(initialSerial)} />
+      <Field name="customerName" label="ชื่อ-นามสกุล" placeholder="ชื่อเจ้าของรถ" required />
       <Field name="customerPhone" label="เบอร์โทรศัพท์" placeholder="08x xxx xxxx" required />
       <Field name="customerEmail" label="อีเมล (ไม่บังคับ)" placeholder="customer@example.com" type="email" />
       <Field name="vehicleMake" label="ยี่ห้อรถ" placeholder="เช่น Porsche" required />
       <Field name="vehicleModel" label="รุ่นรถ" placeholder="เช่น 911" required />
-      <Field name="vehiclePlate" label="ทะเบียนรถ" placeholder="ข้อมูลนี้จะแสดงแบบปกปิดบน public card" required />
-      <label className="field-wide file-field">ภาพงานติดตั้ง (ไม่บังคับ)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple /><small>สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB และจัดเก็บแบบ private</small></label>
+      <Field name="vehiclePlate" label="ทะเบียนรถ" placeholder="ข้อมูลสาธารณะจะแสดงแบบปกปิด" required />
+      <Honeypot />
+      <Consent />
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
-      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังลงทะเบียน..." : `${button} →`}</button>
+      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึก..." : `${button} →`}</button>
     </form>
   );
 
   if (kind === "maintenance") return (
     <form className="form-grid" onSubmit={submit}>
-      <Field name="serialCode" label="Serial Number" placeholder="ค้นหาบัตรรับประกัน" required />
+      <Field name="serialCode" label="Serial Number" placeholder="ค้นหาบัตรรับประกัน" defaultValue={initialSerial} required />
       <Field name="maintenanceDate" label="วันที่เข้ารับบริการ" type="date" required />
       <label>ประเภทบริการ<select name="maintenanceType" required defaultValue=""><option value="" disabled>เลือกประเภท</option><option value="maintenance">Maintenance</option><option value="inspection">Inspection</option><option value="after_sales">After-sales support</option></select></label>
       <Field name="performedBy" label="ผู้ดำเนินการ" placeholder="ชื่อช่างหรือผู้ตรวจสภาพ" required />
@@ -193,8 +224,8 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
   </div>;
 }
 
-function Field({ label, placeholder, type = "text", required = false, name, defaultValue }: { label: string; placeholder?: string; type?: string; required?: boolean; name?: string; defaultValue?: string }) {
-  return <label>{label}<input name={name} type={type} placeholder={placeholder} defaultValue={defaultValue} required={required} /></label>;
+function Field({ label, placeholder, type = "text", required = false, readOnly = false, name, defaultValue }: { label: string; placeholder?: string; type?: string; required?: boolean; readOnly?: boolean; name?: string; defaultValue?: string }) {
+  return <label>{label}<input name={name} type={type} placeholder={placeholder} defaultValue={defaultValue} required={required} readOnly={readOnly} /></label>;
 }
 
 function Consent() {

@@ -71,13 +71,13 @@ export default function Home() {
       </section>
 
       <section className="section connected-warranty-section">
-        <SectionTitle eyebrow="CONNECTED WARRANTY" title="ลูกค้า Dealer และ NEXS อยู่ในระบบเดียวกัน" copy="หนึ่ง Serial เชื่อมงานติดตั้ง บัตรรับประกัน การดูแล และคำขอหลังการขาย โดยแต่ละฝ่ายเห็นเฉพาะข้อมูลตามสิทธิ์" />
+        <SectionTitle eyebrow="CONNECTED WARRANTY" title="QR เดียว เชื่อม Dealer ลูกค้า และ NEXS" copy="หนึ่ง Serial เชื่อมวันที่ติดตั้ง บัตรรับประกัน การดูแล และคำขอหลังการขาย โดยไม่ต้องรอสำนักงานใหญ่เปิดบัตรให้" />
         <div className="connected-warranty-flow">
-          <article><span>01</span><p className="eyebrow">CUSTOMER</p><h3>ตรวจสอบและขอรับบริการ</h3><p>สแกน QR หรือกรอก Serial เพื่อดูบัตรแบบปกปิดข้อมูลส่วนบุคคล แล้วเปิดคำขอ Support หรือ Inspection ได้</p><ArrowLink secondary href="/warranty">ตรวจสอบบัตร</ArrowLink></article>
+          <article><span>01</span><p className="eyebrow">DEALER</p><h3>สแกนและเปิด Serial</h3><p>ล็อกอิน สแกน QR แล้วบันทึกวันที่ติดตั้ง ระบบสร้าง Serial และคำนวณวันหมดอายุให้อัตโนมัติ</p><ArrowLink secondary href="/login">Dealer Login</ArrowLink></article>
           <b aria-hidden="true">→</b>
-          <article><span>02</span><p className="eyebrow">DEALER</p><h3>ลงทะเบียนและดูแลงานติดตั้ง</h3><p>ลงทะเบียน Serial บันทึกรถ วันที่ติดตั้ง รูปงาน Maintenance และติดตามเฉพาะลูกค้าของร้าน</p><ArrowLink secondary href="/login">Dealer Login</ArrowLink></article>
+          <article><span>02</span><p className="eyebrow">CUSTOMER</p><h3>กรอกข้อมูลครั้งเดียว</h3><p>ใช้ QR เดิมเติมข้อมูลเจ้าของและรถ จากนั้นตรวจวันติดตั้ง วันหมดอายุ และสถานะบัตรได้ตลอด</p><ArrowLink secondary href="/warranty">ตรวจสอบบัตร</ArrowLink></article>
           <b aria-hidden="true">→</b>
-          <article><span>03</span><p className="eyebrow">NEXS ADMIN</p><h3>ควบคุม Policy และตรวจสอบย้อนหลัง</h3><p>จัดการ Serial, Dealer, Product Policy, สถานะบัตร คำขอ และ Audit Log จากศูนย์กลาง</p><ArrowLink secondary href="/login">Admin Login</ArrowLink></article>
+          <article><span>03</span><p className="eyebrow">AFTER-SALES</p><h3>ดูแลต่อจาก QR เดิม</h3><p>Dealer เพิ่ม Maintenance ได้ทันที ส่วน NEXS ดูแล Policy, ข้อยกเว้น และตรวจสอบย้อนหลังเมื่อจำเป็น</p><ArrowLink secondary href="/support/inspection">นัดตรวจสภาพ</ArrowLink></article>
         </div>
       </section>
 
@@ -96,7 +96,7 @@ export default function Home() {
       <section className="section business-section">
         <article><span>FOR INSTALLERS</span><h2>Designed for Growth.</h2><p>ลงทะเบียนงานติดตั้ง บันทึกการดูแล และติดตามเฉพาะลูกค้าของร้าน</p><ArrowLink href="/for-dealers">Become a Dealer</ArrowLink></article>
         <article><span>FOR DEALERS</span><h2>Grow Your Business with NEXS</h2><p>ระบบ Warranty, Maintenance และ Support ที่เชื่อมต่อกับบริการหลังการขาย</p><ArrowLink href="/login">Dealer Login</ArrowLink></article>
-        <div className="business-points"><p>↗ <b>Operational workflow</b><small>Factory → Admin → Dealer → Customer</small></p><p>▤ <b>Training & support</b><small>โครงสร้างข้อมูลพร้อมขยายระบบ</small></p><p>◎ <b>Digital warranty</b><small>ตรวจสอบจาก Serial และ QR</small></p></div>
+        <div className="business-points"><p>↗ <b>Operational workflow</b><small>Factory → Dealer → Customer → After-sales</small></p><p>▤ <b>Training & support</b><small>โครงสร้างข้อมูลพร้อมขยายระบบ</small></p><p>◎ <b>Digital warranty</b><small>ตรวจสอบจาก Serial และ QR</small></p></div>
       </section>
 
       <section className="section home-faq-section">

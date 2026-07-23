@@ -116,7 +116,7 @@ export function TrustStrip() {
 }
 
 export function DashboardShell({ role, title, children, active = "dashboard" }: { role: "Dealer" | "Admin"; title: string; children: ReactNode; active?: string }) {
-  const dealerLinks = [["dashboard", "ภาพรวม", "/dealer"], ["register", "ลงทะเบียนรับประกัน", "/dealer/register-warranty"], ["warranties", "บัตรรับประกัน", "/dealer/warranties"], ["maintenance", "บำรุงรักษา", "/dealer/maintenance"], ["requests", "งานที่ได้รับมอบหมาย", "/dealer/requests"], ["profile", "ข้อมูลร้าน", "/dealer/profile"]];
+  const dealerLinks = [["dashboard", "ภาพรวม", "/dealer"], ["register", "เปิดใช้งาน QR", "/dealer/register-warranty"], ["warranties", "บัตรรับประกัน", "/dealer/warranties"], ["maintenance", "บำรุงรักษา", "/dealer/maintenance"], ["requests", "งานที่ได้รับมอบหมาย", "/dealer/requests"], ["profile", "ข้อมูลร้าน", "/dealer/profile"]];
   const adminLinks = [["dashboard", "ภาพรวม", "/admin"], ["serials", "Serial / Batch", "/admin/serials"], ["warranties", "บัตรรับประกัน", "/admin/warranties"], ["exceptions", "Registration Exceptions", "/admin/registration-exceptions"], ["dealers", "Dealer", "/admin/dealers"], ["products", "สินค้า / Policy", "/admin/products"], ["maintenance", "Maintenance", "/admin/maintenance"], ["media", "Private Media", "/admin/media"], ["contact", "Contact Requests", "/admin/contact-requests"], ["support", "Support Requests", "/admin/support-requests"], ["inspection", "Inspection", "/admin/inspection-requests"], ["audit", "Audit Log", "/admin/audit-log"], ["reports", "Reports", "/admin/reports"], ["policy", "Policy", "/admin/policy"]];
   const links = role === "Dealer" ? dealerLinks : adminLinks;
   return (
@@ -128,7 +128,7 @@ export function DashboardShell({ role, title, children, active = "dashboard" }: 
         <Link className="dashboard-exit" href="/">← กลับเว็บไซต์</Link>
       </aside>
       <main className="dashboard-main">
-        <header className="dashboard-header"><div><p>NEXS Digital Warranty</p><h1>{title}</h1></div><span className="demo-badge">Protected workspace · Sign in with ChatGPT + role access</span></header>
+        <header className="dashboard-header"><div><p>NEXS Digital Warranty</p><h1>{title}</h1></div><span className="demo-badge">ระบบปลอดภัย · จำกัดข้อมูลตามบัญชีและร้าน</span></header>
         {children}
       </main>
     </div>
@@ -140,6 +140,25 @@ export function StatCard({ label, value, note }: { label: string; value: string;
 }
 
 export function StatusPill({ status }: { status: string }) {
-  const labels: Record<string, string> = { active: "ACTIVE", pending: "รอตรวจสอบ", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่ลงทะเบียน", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
+  const labels: Record<string, string> = { active: "ACTIVE", pending: "รอตรวจสอบ", "pending-customer": "รอลูกค้ากรอกข้อมูล", "profile-required": "รอลูกค้ากรอกข้อมูล", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่เปิดใช้งาน", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
   return <span className={`status-pill status-${status}`}>{labels[status] ?? status}</span>;
+}
+
+export function WarrantyJourney({ current }: { current: "dealer" | "customer" | "active" }) {
+  const steps = [
+    ["dealer", "01", "Dealer เปิด QR", "บันทึกวันที่ติดตั้ง"],
+    ["customer", "02", "ลูกค้าเติมข้อมูล", "ทำครั้งเดียว"],
+    ["active", "03", "บัตรพร้อมใช้งาน", "ตรวจสอบและดูแลต่อ"],
+  ] as const;
+  const currentIndex = steps.findIndex(([key]) => key === current);
+  return (
+    <section className="warranty-journey" aria-label="ขั้นตอนเปิดบัตรรับประกัน">
+      {steps.map(([key, number, title, copy], index) => (
+        <div className={index < currentIndex ? "done" : index === currentIndex ? "current" : ""} key={key}>
+          <span>{index < currentIndex ? "✓" : number}</span>
+          <p><b>{title}</b><small>{copy}</small></p>
+        </div>
+      ))}
+    </section>
+  );
 }

@@ -84,10 +84,13 @@ describe("unified NEXS production system", () => {
       readFile("src/app/client-ui.tsx", "utf8"),
     ]);
     expect(publicCard).toContain("/dealer/register-warranty?serial=");
-    expect(publicCard).toContain("ลูกค้าไม่ต้องเปิดใช้งานบัตรด้วยตนเอง");
+    expect(publicCard).toContain("เปิดใช้งานได้ทันที ไม่ต้องรอสำนักงานใหญ่");
+    expect(publicCard).toContain("/warranty/complete?serial=");
+    expect(publicCard).toContain("/dealer/maintenance?serial=");
     expect(dealerPage).toContain("initialSerial={initialSerial}");
     expect(dealerPage).toContain("?serial=${encodeURIComponent(initialSerial)}");
     expect(dealerForm).toContain("defaultValue={initialSerial}");
+    expect(dealerForm).toContain('kind === "customer-complete"');
   });
 
   it("stores private evidence outside public assets and blocks traversal", async () => {

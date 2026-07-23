@@ -28,10 +28,17 @@ describe('PostgreSQL migration contract', () => {
   });
 
   it('seeds the warranty years shown by the unified public catalog', () => {
-    const sql = readFileSync('migrations/postgres/0001_unified_warranty_system.sql', 'utf8');
-    expect(sql).toContain("('BEGIN', 'BEGIN', 'clear', 4");
-    expect(sql).toContain("('PRIME', 'PRIME', 'clear', 7");
-    expect(sql).toContain("('PRO', 'PRO', 'clear', 8");
-    expect(sql).toContain("('ULTIMATE', 'ULTIMATE', 'clear', 9");
+    const sql = readFileSync('migrations/postgres/0002_self_service_qr_activation.sql', 'utf8');
+    expect(sql).toContain("WHEN 'BEGIN' THEN 5");
+    expect(sql).toContain("WHEN 'PRIME' THEN 6");
+    expect(sql).toContain("WHEN 'PRO' THEN 8");
+    expect(sql).toContain("WHEN 'ULTIMATE' THEN 9");
+  });
+
+  it('supports dealer activation followed by one-time customer completion', () => {
+    const sql = readFileSync('migrations/postgres/0002_self_service_qr_activation.sql', 'utf8');
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS customer_completed_at");
+    expect(sql).toContain("'pending_customer'");
+    expect(sql).toContain("ALTER COLUMN customer_name DROP NOT NULL");
   });
 });
