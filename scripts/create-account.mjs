@@ -11,7 +11,7 @@ const dealerCode = process.env.DEALER_CODE?.trim() || null;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("ACCOUNT_EMAIL is invalid");
 if (displayName.length < 2) throw new Error("ACCOUNT_NAME is too short");
-if (password.length < 12) throw new Error("ACCOUNT_PASSWORD must contain at least 12 characters");
+if (password.length < 8) throw new Error("ACCOUNT_PASSWORD must contain at least 8 characters");
 if (role !== "admin" && role !== "dealer") throw new Error("ACCOUNT_ROLE must be admin or dealer");
 if (role === "dealer" && !dealerCode) throw new Error("DEALER_CODE is required for a dealer account");
 if (role === "admin" && dealerCode) throw new Error("DEALER_CODE must be empty for an admin account");

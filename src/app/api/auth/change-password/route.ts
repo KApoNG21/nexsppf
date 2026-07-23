@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const returnTo = safeReturnPath(String(form.get("returnTo") ?? ""), "/dealer");
 
   if (!isStrongPassword(newPassword)) {
-    return fail("รหัสผ่านใหม่ต้องมีอย่างน้อย 12 ตัว และมีตัวอักษรกับตัวเลข", 400);
+    return fail("รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัว และมีตัวอักษรกับตัวเลข", 400);
   }
   if (newPassword !== confirmPassword) return fail("ยืนยันรหัสผ่านใหม่ไม่ตรงกัน", 400);
   if (currentPassword === newPassword) return fail("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม", 400);
@@ -56,5 +56,5 @@ export async function POST(request: Request) {
 }
 
 function isStrongPassword(value: string) {
-  return value.length >= 12 && value.length <= 128 && /[A-Za-zก-๙]/.test(value) && /\d/.test(value);
+  return value.length >= 8 && value.length <= 128 && /[A-Za-zก-๙]/.test(value) && /\d/.test(value);
 }

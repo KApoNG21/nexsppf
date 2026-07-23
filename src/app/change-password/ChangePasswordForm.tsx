@@ -28,9 +28,9 @@ export function ChangePasswordForm({ returnTo }: { returnTo: string }) {
     <form className="partner-login-form password-change-form" onSubmit={submit}>
       <input type="hidden" name="returnTo" value={returnTo} />
       <label>รหัสผ่านปัจจุบันหรือรหัสชั่วคราว<input name="currentPassword" type="password" autoComplete="current-password" required /></label>
-      <label>รหัสผ่านใหม่<input name="newPassword" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /></label>
-      <label>ยืนยันรหัสผ่านใหม่<input name="confirmPassword" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /></label>
-      <p className="form-note">อย่างน้อย 12 ตัว และต้องมีตัวอักษรกับตัวเลข</p>
+      <label>รหัสผ่านใหม่<input name="newPassword" type="password" autoComplete="new-password" minLength={8} maxLength={128} required /></label>
+      <label>ยืนยันรหัสผ่านใหม่<input name="confirmPassword" type="password" autoComplete="new-password" minLength={8} maxLength={128} required /></label>
+      <p className="form-note">อย่างน้อย 8 ตัว และต้องมีตัวอักษรกับตัวเลข</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="button button-primary" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึก..." : "ตั้งรหัสผ่านใหม่ →"}</button>
     </form>

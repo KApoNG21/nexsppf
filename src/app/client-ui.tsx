@@ -391,10 +391,10 @@ export function AdminDealerForm() {
     {action === "create_with_account" && <Field name="displayName" label="ชื่อผู้ใช้งาน" placeholder="ชื่อผู้ดูแลร้าน" required />}
     {usesPassword && <label>รหัสผ่านชั่วคราว
       <div className="password-generate-row">
-        <input name="temporaryPassword" type="text" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} minLength={12} maxLength={128} autoComplete="off" required />
+        <input name="temporaryPassword" type="text" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="off" required />
         <button type="button" onClick={() => setTemporaryPassword(generateTemporaryPassword())}>สร้างรหัส</button>
       </div>
-      <small>อย่างน้อย 12 ตัว มีตัวอักษรและตัวเลข ระบบจะบังคับให้ Dealer เปลี่ยนเมื่อเข้าสู่ระบบครั้งแรก</small>
+      <small>อย่างน้อย 8 ตัว มีตัวอักษรและตัวเลข ระบบจะบังคับให้ Dealer เปลี่ยนเมื่อเข้าสู่ระบบครั้งแรก</small>
     </label>}
     {action === "set_account_status" && <label>สถานะบัญชี<select name="accountStatus" defaultValue="active"><option value="active">Active</option><option value="suspended">Suspended</option></select></label>}
     {action === "create_with_account" && <p className="field-wide form-note">Dealer และบัญชีจะ Active ทันที กรุณาส่ง Username และรหัสผ่านชั่วคราวให้ผู้รับอย่างปลอดภัย รหัสผ่านจะไม่ถูกแสดงอีกหลังบันทึก</p>}

@@ -136,8 +136,8 @@ function accountEmailFrom(form: FormData) {
 
 function passwordFrom(form: FormData) {
   const password = String(form.get("temporaryPassword") ?? "");
-  if (password.length < 12 || password.length > 128 || !/[A-Za-zก-๙]/.test(password) || !/\d/.test(password)) {
-    throw new PartnerValidationError("รหัสผ่านชั่วคราวต้องมีอย่างน้อย 12 ตัว และมีตัวอักษรกับตัวเลข");
+  if (password.length < 8 || password.length > 128 || !/[A-Za-zก-๙]/.test(password) || !/\d/.test(password)) {
+    throw new PartnerValidationError("รหัสผ่านชั่วคราวต้องมีอย่างน้อย 8 ตัว และมีตัวอักษรกับตัวเลข");
   }
   return password;
 }
