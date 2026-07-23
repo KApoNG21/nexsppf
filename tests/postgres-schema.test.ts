@@ -2,21 +2,36 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('PostgreSQL migration contract', () => {
-  it('defines serial uniqueness and one-active-warranty protection', () => {
-    const sql = readFileSync('drizzle/0001_initial_warranty_system.sql', 'utf8');
-    expect(sql).toContain('CREATE UNIQUE INDEX serials_serial_code_unique');
-    expect(sql).toContain('CREATE UNIQUE INDEX warranties_one_active_per_serial_unique');
-    expect(sql).toContain("WHERE status = 'active'");
+  it('defines the connected warranty, role, request, audit, and storage records', () => {
+    const sql = readFileSync('migrations/postgres/0001_unified_warranty_system.sql', 'utf8');
+    for (const table of [
+      'auth_accounts',
+      'account_roles',
+      'dealers',
+      'product_series',
+      'serials',
+      'warranties',
+      'maintenance_records',
+      'support_requests',
+      'inspection_requests',
+      'contact_requests',
+      'registration_exceptions',
+      'media_assets',
+      'admin_policies',
+      'audit_logs',
+    ]) {
+      expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
+    }
+    expect(sql).toContain('serial_code text NOT NULL UNIQUE');
+    expect(sql).toContain("role text NOT NULL CHECK (role IN ('dealer', 'admin'))");
+    expect(sql).toContain("CHECK ((role = 'dealer' AND dealer_id IS NOT NULL) OR (role = 'admin' AND dealer_id IS NULL))");
   });
 
-  it('seeds approved product warranty years including config-only PRO', () => {
-    const sql = readFileSync('drizzle/0001_initial_warranty_system.sql', 'utf8');
-    expect(sql).toContain("('B', 'BEGIN', 5, true");
-    expect(sql).toContain("('P', 'PRIME', 6, true");
-    expect(sql).toContain('parent_model_code text');
-    expect(sql).toContain("('PRO', 'PRO', 8, true, NULL");
-    expect(sql).toContain("('R75', 'PRO 7.5', 8, false, 'PRO'");
-    expect(sql).toContain("('R85', 'PRO 8.5', 8, false, 'PRO'");
-    expect(sql).toContain("('U', 'ULTIMATE', 9, true, NULL");
+  it('seeds the warranty years shown by the unified public catalog', () => {
+    const sql = readFileSync('migrations/postgres/0001_unified_warranty_system.sql', 'utf8');
+    expect(sql).toContain("('BEGIN', 'BEGIN', 'clear', 4");
+    expect(sql).toContain("('PRIME', 'PRIME', 'clear', 7");
+    expect(sql).toContain("('PRO', 'PRO', 'clear', 8");
+    expect(sql).toContain("('ULTIMATE', 'ULTIMATE', 'clear', 9");
   });
 });

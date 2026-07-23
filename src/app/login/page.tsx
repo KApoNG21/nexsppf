@@ -1,66 +1,9 @@
-'use client';
+import Link from "next/link";
+import { Logo } from "../components";
+import { safeReturnPath } from "@/lib/auth-session";
 
-import { useState } from 'react';
-import { BrandMark } from '../preview-redesign/variant-b-preview';
-
-export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  return (
-    <main className="variant-b-shell variant-b-login-shell">
-      <div className="variant-b-login-wrap">
-        <div className="variant-b-login-head">
-          <BrandMark />
-          <h1>Dealer / Admin Login</h1>
-          <p>เข้าสู่ระบบเพื่อใช้งาน Dealer Console</p>
-        </div>
-        <form
-          className="variant-b-login-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            alert('Authentication will be wired up by the back-end team');
-          }}
-        >
-          <label>
-            อีเมล
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="dealer@nexsppf.com"
-              autoComplete="username"
-            />
-          </label>
-          <label>
-            รหัสผ่าน
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
-          </label>
-          <div className="variant-b-login-row">
-            <label className="variant-b-login-remember">
-              <input type="checkbox" /> จดจำการเข้าสู่ระบบ
-            </label>
-            <a className="variant-b-login-forgot" href="/contact">
-              ลืมรหัสผ่าน?
-            </a>
-          </div>
-          <button type="submit">เข้าสู่ระบบ</button>
-          <p className="variant-b-login-note">
-            เฉพาะตัวแทนจำหน่ายและ Admin ที่ได้รับการแต่งตั้งจาก NEXS เท่านั้น
-            <br />
-            <a href="/contact">สมัครเป็นตัวแทนจำหน่าย</a> · <a href="/">กลับหน้าแรก</a>
-          </p>
-        </form>
-        <p className="variant-b-login-secured">Secured by NEXS</p>
-      </div>
-    </main>
-  );
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; return_to?: string }> }) {
+  const params = await searchParams;
+  const returnTo = params.return_to ? safeReturnPath(params.return_to, "/dealer") : "";
+  return <div className="login-page"><section className="login-visual"><Link href="/"><Logo inverse /></Link><div><p className="eyebrow slash">NEXS PARTNER SYSTEM</p><h1>Warranty operations,<br />connected.</h1><p>จัดการ Serial, งานติดตั้ง, บัตรรับประกัน และบริการหลังการขายในระบบเดียว</p></div><small>Factory → Admin → Dealer → Customer</small></section><main className="login-panel"><div><p className="eyebrow">SECURE PARTNER ACCESS</p><h2>เข้าสู่ระบบพาร์ทเนอร์</h2><p>ใช้บัญชีที่ NEXS อนุมัติ ระบบจะตรวจบทบาทและสิทธิ์ของร้านบนเซิร์ฟเวอร์ทุกครั้ง</p>{params.error ? <p className="form-error">อีเมลหรือรหัสผ่านไม่ถูกต้อง</p> : null}<form className="partner-login-form" action="/api/auth/login" method="post"><input type="hidden" name="return_to" value={returnTo} /><label>อีเมล<input name="email" type="email" autoComplete="username" required /></label><label>รหัสผ่าน<input name="password" type="password" autoComplete="current-password" minLength={8} required /></label><button className="button button-primary" type="submit">เข้าสู่ระบบ <span>→</span></button></form><ul className="login-security-list"><li>บัญชี Dealer เข้าถึงเฉพาะข้อมูลของร้านตนเอง</li><li>Admin actions ถูกบันทึกใน Audit Log</li><li>Session ถูกเข้ารหัสและหมดอายุอัตโนมัติ</li></ul><div className="login-warning"><b>ต้องการสิทธิ์เข้าใช้งาน?</b><p>ติดต่อ NEXS เพื่อผูกบัญชีกับ Dealer หรือ Admin ก่อนเข้าสู่ระบบ</p><Link href="/contact">ติดต่อทีมงาน →</Link></div></div></main></div>;
 }

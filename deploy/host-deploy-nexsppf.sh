@@ -1,183 +1,89 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/docker/nexsppf-web"
-REPO_DIR="$APP_DIR/repo"
-TRAEFIK_DYNAMIC="/docker/traefik-ojo9/dynamic/nexsppf.yml"
-APP_PORT="3102"
-REPO_URL="https://github.com/KApoNG21/nexsppf.git"
-
-echo "[1/12] Verify required commands"
-command -v docker >/dev/null
-command -v git >/dev/null
-sudo -n true >/dev/null
-
-echo "[2/12] Verify port ${APP_PORT} is free or already owned by nexsppf-web"
-if sudo ss -ltnp | grep -E ":${APP_PORT}\b"; then
-  if sudo docker ps --filter name='^/nexsppf-web$' --format '{{.Names}} {{.Ports}}' | grep -q "127.0.0.1:${APP_PORT}->3000/tcp"; then
-    echo "Port ${APP_PORT} is already used by existing nexsppf-web container; proceeding with in-place update."
-  else
-    echo "ERROR: port ${APP_PORT} is already in use by another process/container" >&2
-    exit 1
-  fi
-fi
-
-echo "[3/12] Prepare app directory"
-sudo mkdir -p "$APP_DIR"
-sudo chown -R "$(id -un):$(id -gn)" "$APP_DIR"
-
-if [ ! -d "$REPO_DIR/.git" ]; then
-  echo "[4/12] Clone repo"
-  git clone "$REPO_URL" "$REPO_DIR"
-else
-  echo "[4/12] Update repo"
-  cd "$REPO_DIR"
-  git status --short --branch
-  git pull --ff-only origin main
-fi
+APP_DIR="${NEXS_APP_DIR:-/docker/nexsppf-web}"
+REPO_DIR="${NEXS_REPO_DIR:-$APP_DIR/repo}"
+BACKUP_ROOT="${NEXS_BACKUP_ROOT:-$APP_DIR/backups}"
+APP_PORT="${NEXS_APP_PORT:-3102}"
+WEB_CONTAINER="${NEXS_WEB_CONTAINER:-nexsppf-web}"
+POSTGRES_CONTAINER="${NEXS_POSTGRES_CONTAINER:-nexsppf-postgres}"
+IMAGE="${NEXS_IMAGE:-nexsppf-web:local}"
+ENV_FILE="${NEXS_ENV_FILE:-.env.production}"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+BACKUP_DIR="$BACKUP_ROOT/$STAMP"
+ROLLBACK_IMAGE="${IMAGE%:*}:rollback-$STAMP"
 
 cd "$REPO_DIR"
-echo "[5/12] Current commit"
-git log -1 --pretty='%H %s'
+test -f "$ENV_FILE"
+command -v docker >/dev/null
+command -v curl >/dev/null
+mkdir -p "$BACKUP_DIR"
 
-cat > Dockerfile <<'EOF'
-# syntax=docker/dockerfile:1
+echo "[1/8] Capture release metadata"
+git rev-parse HEAD > "$BACKUP_DIR/source-commit.txt" 2>/dev/null || true
+docker compose config --images > "$BACKUP_DIR/images.txt"
 
-FROM node:22-bookworm-slim AS deps
-WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-COPY package.json package-lock.json ./
-RUN npm ci
+echo "[2/8] Back up current database and private files"
+if docker ps --format '{{.Names}}' | grep -Fxq "$POSTGRES_CONTAINER"; then
+  docker exec "$POSTGRES_CONTAINER" sh -lc \
+    'pg_dump --clean --if-exists --no-owner --no-privileges -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+    | gzip -9 > "$BACKUP_DIR/database.sql.gz"
+else
+  echo "Database container is not running; this is expected on the first database deployment."
+fi
 
-FROM node:22-bookworm-slim AS builder
-WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN npm run build
-RUN npm prune --omit=dev
+if docker ps -a --format '{{.Names}}' | grep -Fxq "$WEB_CONTAINER"; then
+  docker inspect "$WEB_CONTAINER" > "$BACKUP_DIR/web-container.json"
+  docker run --rm --volumes-from "$WEB_CONTAINER" \
+    -v "$BACKUP_DIR:/backup" alpine:3.21 \
+    sh -lc 'if [ -d /data/nexs-private ]; then tar -C /data -czf /backup/private-files.tgz nexs-private; fi'
+fi
 
-FROM node:22-bookworm-slim AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV HOSTNAME=0.0.0.0
-ENV PORT=3000
+if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  docker tag "$IMAGE" "$ROLLBACK_IMAGE"
+  printf '%s\n' "$ROLLBACK_IMAGE" > "$BACKUP_DIR/rollback-image.txt"
+fi
 
-RUN useradd --system --uid 1001 --create-home --shell /usr/sbin/nologin nextjs
+echo "[3/8] Build the new application image"
+docker compose build nexsppf-web
 
-COPY --from=builder --chown=nextjs:nextjs /app/package.json ./package.json
-COPY --from=builder --chown=nextjs:nextjs /app/package-lock.json ./package-lock.json
-COPY --from=builder --chown=nextjs:nextjs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nextjs /app/.next ./.next
-COPY --from=builder --chown=nextjs:nextjs /app/public ./public
-COPY --from=builder --chown=nextjs:nextjs /app/next.config.ts ./next.config.ts
-
-USER nextjs
-EXPOSE 3000
-CMD ["npm", "run", "start"]
-EOF
-
-cat > .dockerignore <<'EOF'
-node_modules
-npm-debug.log*
-.next
-out
-.git
-.gitignore
-.vscode
-.idea
-.DS_Store
-.env
-.env.*
-!.env.example
-coverage
-*.log
-EOF
-
-cat > docker-compose.yml <<'EOF'
-services:
-  nexsppf-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: nexsppf-web:local
-    container_name: nexsppf-web
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      NEXT_TELEMETRY_DISABLED: "1"
-      PORT: "3000"
-      HOSTNAME: "0.0.0.0"
-    ports:
-      - "127.0.0.1:3102:3000"
-    healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-EOF
-
-echo "[6/12] Build/start nexsppf-web only"
-sudo docker compose up -d --build nexsppf-web
-
-echo "[7/12] Container status"
-sudo docker compose ps
-sudo docker logs --tail=100 nexsppf-web
-
-echo "[8/12] Verify local app"
-for attempt in {1..30}; do
-  if curl -fsSI "http://127.0.0.1:${APP_PORT}/" >/tmp/nexsppf-local-health.headers; then
-    sed -n '1,20p' /tmp/nexsppf-local-health.headers
+echo "[4/8] Start PostgreSQL"
+docker compose up -d postgres
+for attempt in $(seq 1 45); do
+  DATABASE_HEALTH="$(docker inspect -f '{{.State.Health.Status}}' "$POSTGRES_CONTAINER" 2>/dev/null || true)"
+  if [ "$DATABASE_HEALTH" = "healthy" ]; then
     break
   fi
-  if [ "$attempt" -eq 30 ]; then
-    echo "ERROR: local app did not become healthy on port ${APP_PORT}" >&2
-    sudo docker logs --tail=200 nexsppf-web >&2 || true
+  if [ "$attempt" -eq 45 ]; then
+    docker logs --tail=200 "$POSTGRES_CONTAINER" >&2 || true
+    echo "PostgreSQL did not become healthy before migration." >&2
     exit 1
   fi
   sleep 2
 done
 
-echo "[9/12] Add Traefik dynamic route only for nexsppf"
-sudo tee "$TRAEFIK_DYNAMIC" >/dev/null <<'EOF'
-http:
-  routers:
-    nexsppf-web:
-      rule: "Host(`nexsppf.com`) || Host(`www.nexsppf.com`) || Host(`russia.nexsppf.com`) || Host(`usa.nexsppf.com`)"
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: letsencrypt
-      service: nexsppf-web
+echo "[5/8] Apply forward-only database migrations"
+docker compose run --rm --no-deps nexsppf-web npm run db:migrate
 
-  services:
-    nexsppf-web:
-      loadBalancer:
-        servers:
-          - url: "http://127.0.0.1:3102"
-EOF
+echo "[6/8] Start the new web release"
+docker compose up -d --no-deps nexsppf-web
 
-echo "[10/12] Show Traefik config"
-sudo sed -n '1,200p' "$TRAEFIK_DYNAMIC"
-
-echo "[11/12] Traefik recent logs"
-sudo docker logs --tail=160 traefik-ojo9-traefik-1 || true
-
-echo "[12/12] Verify live routes"
-for url in \
-  "https://www.nexsppf.com/" \
-  "https://www.nexsppf.com/products" \
-  "https://www.nexsppf.com/warranty" \
-  "https://www.nexsppf.com/r/PRO-1196MXY0401178Q" \
-  "https://nexsppf.com/" \
-  "https://russia.nexsppf.com/" \
-  "https://usa.nexsppf.com/"; do
-  echo "-- $url --"
-  curl -I -L --max-time 30 -A 'Mozilla/5.0' "$url" | sed -n '1,25p'
-  echo
+echo "[7/8] Wait for local health"
+for attempt in $(seq 1 45); do
+  if curl -fsS "http://127.0.0.1:${APP_PORT}/" >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 45 ]; then
+    docker logs --tail=200 "$WEB_CONTAINER" >&2 || true
+    echo "Release health check failed. The prior image is tagged as $ROLLBACK_IMAGE." >&2
+    exit 1
+  fi
+  sleep 2
 done
 
-echo "DONE. Rollback only nexsppf if needed:"
-echo "sudo rm -f $TRAEFIK_DYNAMIC && cd $REPO_DIR && sudo docker compose down"
+echo "[8/8] Run route smoke tests"
+docker run --rm --network host \
+  -e "SMOKE_BASE_URL=http://127.0.0.1:${APP_PORT}" \
+  "$IMAGE" npm run smoke
+
+echo "Deployment complete. Backup: $BACKUP_DIR"

@@ -1,27 +1,14 @@
-# Dependencies
 node_modules
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Next.js build/cache
 .next
 out
-
-# Git / editor
 .git
 .gitignore
 .vscode
 .idea
 .DS_Store
-
-# Local env files must not be copied into the image
 .env
 .env.*
 !.env.example
-
-# Tests and local-only artifacts
 coverage
-.playwright
 *.log

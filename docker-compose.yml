@@ -1,21 +1,48 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${NEXS_POSTGRES_CONTAINER:-nexsppf-postgres}
+    restart: unless-stopped
+    env_file:
+      - ${NEXS_ENV_FILE:-.env.production}
+    volumes:
+      - nexsppf-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   nexsppf-web:
     build:
       context: .
       dockerfile: Dockerfile
-    image: nexsppf-web:local
-    container_name: nexsppf-web
+    image: ${NEXS_IMAGE:-nexsppf-web:local}
+    container_name: ${NEXS_WEB_CONTAINER:-nexsppf-web}
     restart: unless-stopped
+    env_file:
+      - ${NEXS_ENV_FILE:-.env.production}
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
+      STORAGE_BASE_PATH: "/data/nexs-private"
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
-      - "${NEXSPPF_BIND:-127.0.0.1:3102}:3000"
+      - "127.0.0.1:${NEXS_APP_PORT:-3102}:3000"
+    volumes:
+      - nexsppf-private-data:/data/nexs-private
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
+
+volumes:
+  nexsppf-postgres-data:
+  nexsppf-private-data:
