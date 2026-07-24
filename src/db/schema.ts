@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const productSeries = sqliteTable("product_series", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -40,9 +40,20 @@ export const accountRoles = sqliteTable("account_roles", {
   role: text("role", { enum: ["dealer", "admin"] }).notNull(),
   dealerId: integer("dealer_id"),
   status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
+  isOwner: integer("is_owner", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("account_roles_email_role_uq").on(table.email, table.role)]);
+
+export const accountRolePermissions = sqliteTable("account_role_permissions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  accountRoleId: integer("account_role_id").notNull().references(() => accountRoles.id, { onDelete: "cascade" }),
+  permission: text("permission").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("account_role_permissions_role_permission_uq").on(table.accountRoleId, table.permission),
+  index("account_role_permissions_role_idx").on(table.accountRoleId),
+]);
 
 export const warranties = sqliteTable("warranties", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -173,6 +184,15 @@ export const auditLogs = sqliteTable("audit_logs", {
   entityId: text("entity_id").notNull(),
   detail: text("detail"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const stockWorkspaceState = sqliteTable("stock_workspace_state", {
+  workspaceKey: text("workspace_key").primaryKey(),
+  version: integer("version").notNull().default(1),
+  unitsJson: text("units_json").notNull(),
+  activityJson: text("activity_json").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const publicRequestLimits = sqliteTable("public_request_limits", {

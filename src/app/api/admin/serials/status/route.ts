@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest, unauthorizedResponse } from "../../../../../db/partner-access";
+import { authorizeAdminRequest, unauthorizedResponse } from "../../../../../db/partner-access";
 import { enforceSameOrigin, fail, formText, PartnerValidationError, requiredText } from "../../../_partner-utils";
 
 const transitions: Record<string, Set<string>> = {
@@ -13,7 +13,7 @@ type SerialRow = { id: number; status: string; model_code: string; batch_code: s
 export async function POST(request: Request) {
   const originFailure = enforceSameOrigin(request);
   if (originFailure) return originFailure;
-  const actor = await authorizePartnerRequest(request, "admin");
+  const actor = await authorizeAdminRequest(request, "serial.manage");
   if (!actor) return unauthorizedResponse();
 
   try {

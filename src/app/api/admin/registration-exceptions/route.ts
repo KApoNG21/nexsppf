@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest, unauthorizedResponse } from "../../../../db/partner-access";
+import { authorizeAdminRequest, unauthorizedResponse } from "../../../../db/partner-access";
 import { enforceSameOrigin, fail, formText, PartnerValidationError, requiredText } from "../../_partner-utils";
 
 type ExceptionRow = { id: number; status: string; serial_code: string; dealer_id: number };
@@ -7,7 +7,7 @@ type ExceptionRow = { id: number; status: string; serial_code: string; dealer_id
 export async function POST(request: Request) {
   const originFailure = enforceSameOrigin(request);
   if (originFailure) return originFailure;
-  const actor = await authorizePartnerRequest(request, "admin");
+  const actor = await authorizeAdminRequest(request, "warranty.manage");
   if (!actor) return unauthorizedResponse();
 
   try {

@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest, unauthorizedResponse } from "../../../../db/partner-access";
+import { authorizeAdminRequest, unauthorizedResponse } from "../../../../db/partner-access";
 import { enforceSameOrigin, fail, formText, PartnerValidationError, requiredText } from "../../_partner-utils";
 
 type PolicyRow = { id: number; status: "draft" | "approved" | "published"; draft_value: string };
@@ -7,7 +7,7 @@ type PolicyRow = { id: number; status: "draft" | "approved" | "published"; draft
 export async function POST(request: Request) {
   const originFailure = enforceSameOrigin(request);
   if (originFailure) return originFailure;
-  const actor = await authorizePartnerRequest(request, "admin");
+  const actor = await authorizeAdminRequest(request, "catalog.manage");
   if (!actor) return unauthorizedResponse();
 
   try {

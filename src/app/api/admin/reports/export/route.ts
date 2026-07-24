@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest, unauthorizedResponse } from "../../../../../db/partner-access";
+import { authorizeAdminRequest, unauthorizedResponse } from "../../../../../db/partner-access";
 
 const reports = {
   serials: {
@@ -54,7 +54,7 @@ type ReportKey = keyof typeof reports;
 type CsvRow = Record<string, unknown>;
 
 export async function GET(request: Request) {
-  const actor = await authorizePartnerRequest(request, "admin");
+  const actor = await authorizeAdminRequest(request, "reports.export");
   if (!actor) return unauthorizedResponse();
 
   const reportKey = new URL(request.url).searchParams.get("report") as ReportKey | null;

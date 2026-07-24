@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest } from "../../../../../db/partner-access";
+import { authorizeAdminRequest, authorizePartnerRequest } from "../../../../../db/partner-access";
 
 type MediaRow = { id: number; owner_type: string; owner_reference: string; object_key: string; original_name: string; content_type: string };
 type OwnershipRow = { allowed: number };
@@ -10,7 +10,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const media = await env.DB.prepare("SELECT id, owner_type, owner_reference, object_key, original_name, content_type FROM media_assets WHERE id = ? LIMIT 1").bind(Number(id)).first<MediaRow>();
   if (!media) return Response.json({ error: "ไม่พบไฟล์" }, { status: 404 });
 
-  const admin = await authorizePartnerRequest(request, "admin");
+  const admin = await authorizeAdminRequest(request, "warranty.view");
   let allowed = Boolean(admin);
   if (!allowed) {
     const dealer = await authorizePartnerRequest(request, "dealer");
