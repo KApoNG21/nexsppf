@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const productSeries = sqliteTable("product_series", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -194,6 +194,29 @@ export const stockWorkspaceState = sqliteTable("stock_workspace_state", {
   updatedBy: text("updated_by").notNull(),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const stockColorProducts = sqliteTable("stock_color_products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  skuCode: text("sku_code").notNull(),
+  seriesName: text("series_name").notNull(),
+  productName: text("product_name").notNull(),
+  colorName: text("color_name").notNull(),
+  colorCode: text("color_code").notNull().default(""),
+  colorHex: text("color_hex").notNull(),
+  sizeLabel: text("size_label").notNull(),
+  metres: real("metres").notNull(),
+  imageObjectKey: text("image_object_key"),
+  imageOriginalName: text("image_original_name"),
+  imageContentType: text("image_content_type"),
+  imageSizeBytes: integer("image_size_bytes"),
+  createdBy: text("created_by").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("stock_color_products_sku_code_uq").on(table.skuCode),
+  index("stock_color_products_updated_at_idx").on(table.updatedAt),
+]);
 
 export const publicRequestLimits = sqliteTable("public_request_limits", {
   limitKey: text("limit_key").primaryKey(),

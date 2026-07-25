@@ -15,6 +15,7 @@ const MAX_ACTIVITY = 250;
 type UnitStatus = "available" | "reserved" | "open" | "in-transit" | "issued" | "damaged";
 type LabelStatus = "printed" | "unprinted";
 type SerialSource = "existing-qr" | "system" | "opening-balance";
+type ProductKind = "standard" | "color";
 
 type StockUnit = {
   serial: string;
@@ -28,6 +29,11 @@ type StockUnit = {
   initialMetres: number;
   metres: number;
   updatedAt: string;
+  productKind?: ProductKind;
+  colorProductId?: number;
+  colorName?: string;
+  colorCode?: string;
+  colorHex?: string;
 };
 
 type Activity = {
@@ -50,6 +56,7 @@ type StateRow = {
 const allowedStatuses = new Set<UnitStatus>(["available", "reserved", "open", "in-transit", "issued", "damaged"]);
 const allowedLabelStatuses = new Set<LabelStatus>(["printed", "unprinted"]);
 const allowedSources = new Set<SerialSource>(["existing-qr", "system", "opening-balance"]);
+const allowedProductKinds = new Set<ProductKind>(["standard", "color"]);
 const allowedTones = new Set<Activity["tone"]>(["red", "green", "blue", "gold"]);
 
 export async function GET(request: Request) {
@@ -195,6 +202,11 @@ function validateUnits(value: unknown): StockUnit[] {
     const source = safeEnum(unit.source, allowedSources, "แหล่ง Serial");
     const initialMetres = safeNumber(unit.initialMetres, "เมตรตั้งต้น", 0, 10000);
     const metres = safeNumber(unit.metres, "เมตรคงเหลือ", 0, initialMetres);
+    const productKind = unit.productKind == null ? undefined : safeEnum(unit.productKind, allowedProductKinds, "ประเภทสินค้า");
+    const colorProductId = productKind === "color" ? safeInteger(unit.colorProductId, "รหัสข้อมูลสี", 1, 1_000_000_000) : undefined;
+    const colorName = productKind === "color" ? safeText(unit.colorName, "ชื่อสี", 2, 100) : undefined;
+    const colorCode = productKind === "color" ? safeOptionalText(unit.colorCode, "รหัสสี", 50) : undefined;
+    const colorHex = productKind === "color" ? safeColorHex(unit.colorHex) : undefined;
     return {
       serial,
       product: safeText(unit.product, "สินค้า", 1, 160),
@@ -207,6 +219,10 @@ function validateUnits(value: unknown): StockUnit[] {
       initialMetres,
       metres,
       updatedAt: safeText(unit.updatedAt, "เวลาอัปเดต", 1, 120),
+      ...(productKind ? { productKind } : {}),
+      ...(colorProductId ? { colorProductId } : {}),
+      ...(colorName ? { colorName } : {}),
+      ...(productKind === "color" ? { colorCode: colorCode ?? "", colorHex } : {}),
     };
   });
 }
@@ -248,6 +264,27 @@ function safeNumber(value: unknown, label: string, min: number, max: number): nu
   const number = Number(value);
   if (!Number.isFinite(number) || number < min || number > max) throw new ValidationError(`${label}ไม่ถูกต้อง`);
   return Math.round(number * 1000) / 1000;
+}
+
+function safeInteger(value: unknown, label: string, min: number, max: number) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < min || number > max) throw new ValidationError(`${label}ไม่ถูกต้อง`);
+  return number;
+}
+
+function safeOptionalText(value: unknown, label: string, max: number) {
+  if (value == null) return "";
+  if (typeof value !== "string") throw new ValidationError(`${label}ไม่ถูกต้อง`);
+  const text = value.trim();
+  if (text.length > max) throw new ValidationError(`${label}ไม่ถูกต้อง`);
+  return text;
+}
+
+function safeColorHex(value: unknown) {
+  if (typeof value !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(value)) {
+    throw new ValidationError("สีตัวอย่างไม่ถูกต้อง");
+  }
+  return value.toUpperCase();
 }
 
 function safeEnum<T extends string>(value: unknown, allowed: Set<T>, label: string): T {

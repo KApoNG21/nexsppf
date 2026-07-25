@@ -10,8 +10,9 @@ type ViewKey = StockViewKey;
 type UnitStatus = "available" | "reserved" | "open" | "in-transit" | "issued" | "damaged";
 type LabelStatus = "printed" | "unprinted";
 type SerialSource = "existing-qr" | "system" | "opening-balance";
-type ProductFamily = "NEXS" | "PLAIN BOX";
+type ProductFamily = "NEXS" | "PLAIN BOX" | "COLOR FILM";
 type ProductConfigStatus = "confirmed" | "verify";
+type ProductKind = "standard" | "color";
 
 type StockUnit = {
   serial: string;
@@ -25,6 +26,11 @@ type StockUnit = {
   initialMetres: number;
   metres: number;
   updatedAt: string;
+  productKind?: ProductKind;
+  colorProductId?: number;
+  colorName?: string;
+  colorCode?: string;
+  colorHex?: string;
 };
 
 type Activity = {
@@ -46,6 +52,21 @@ type ProductOption = {
   skuCode: string;
   metres: number;
   configStatus: ProductConfigStatus;
+};
+
+type ColorProduct = {
+  id: number;
+  skuCode: string;
+  seriesName: string;
+  productName: string;
+  colorName: string;
+  colorCode: string;
+  colorHex: string;
+  sizeLabel: string;
+  metres: number;
+  hasImage: boolean;
+  imageUrl: string | null;
+  updatedAt: string;
 };
 
 const STORAGE_KEY = "nexs-stock-workspace-prototype-v3";
@@ -161,6 +182,16 @@ function serialSourceLabel(source: SerialSource) {
   return "ระบบสร้างให้";
 }
 
+function colorProductForUnit(unit: StockUnit, products: ColorProduct[]) {
+  if (unit.productKind !== "color" || !unit.colorProductId) return null;
+  return products.find((product) => product.id === unit.colorProductId) ?? null;
+}
+
+function colorProductLabel(unit: StockUnit) {
+  if (unit.productKind !== "color") return "";
+  return [unit.colorName, unit.colorCode].filter(Boolean).join(" · ");
+}
+
 function findQrProduct(rawValue: string) {
   const tokens = rawValue.trim().toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
   return PRODUCT_OPTIONS.find((item) => item.qr && item.codes.some((code) => tokens.includes(code)));
@@ -169,10 +200,12 @@ function findQrProduct(rawValue: string) {
 function exportStockCsv(units: StockUnit[]) {
   const escapeCsv = (value: string | number) => `"${String(value).replaceAll("\"", "\"\"")}"`;
   const rows = [
-    ["Serial", "สินค้า", "ขนาด", "Lot", "ตำแหน่ง", "สถานะ", "แหล่ง Serial", "Label", "คงเหลือเมตร"],
+    ["Serial", "สินค้า", "ชื่อสี", "รหัสสี", "ขนาด", "Lot", "ตำแหน่ง", "สถานะ", "แหล่ง Serial", "Label", "คงเหลือเมตร"],
     ...units.map((unit) => [
       unit.serial,
       unit.product,
+      unit.colorName ?? "",
+      unit.colorCode ?? "",
       unit.variant,
       unit.lot,
       unit.location,
@@ -193,6 +226,24 @@ function exportStockCsv(units: StockUnit[]) {
 
 function exportProductBalanceCsv(units: StockUnit[]) {
   const escapeCsv = (value: string | number) => `"${String(value).replaceAll("\"", "\"\"")}"`;
+  const colorBalances = [...new Map(
+    units
+      .filter((unit) => unit.productKind === "color")
+      .map((unit) => [unit.product, unit]),
+  ).values()].map((sample) => {
+    const productUnits = units.filter((unit) => unit.product === sample.product);
+    const activeUnits = productUnits.filter((unit) => !["issued", "damaged"].includes(unit.status));
+    return [
+      sample.product,
+      `ฟิล์มสี · ${colorProductLabel(sample) || "ยังไม่ระบุสี"}`,
+      0,
+      activeUnits.length,
+      activeUnits.length,
+      activeUnits.reduce((sum, unit) => sum + unit.metres, 0).toFixed(1),
+      0,
+      activeUnits.filter((unit) => unit.labelStatus === "unprinted").length,
+    ];
+  });
   const rows = [
     ["สินค้า", "กลุ่ม", "ยอดตั้งต้น", "คงเหลือปัจจุบัน", "เปลี่ยนแปลง", "เมตรคงเหลือ", "รอผูก QR", "ยังไม่พิมพ์ Label"],
     ...OPENING_STOCK_COUNTS.map((item) => {
@@ -209,6 +260,7 @@ function exportProductBalanceCsv(units: StockUnit[]) {
         activeUnits.filter((unit) => unit.labelStatus === "unprinted").length,
       ];
     }),
+    ...colorBalances,
   ];
   const csv = "\uFEFF" + rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -224,6 +276,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
   const [view, setView] = useState<ViewKey>(initialView);
   const [units, setUnits] = useState<StockUnit[]>(INITIAL_UNITS);
   const [activity, setActivity] = useState<Activity[]>(INITIAL_ACTIVITY);
+  const [colorProducts, setColorProducts] = useState<ColorProduct[]>([]);
   const [dataReady, setDataReady] = useState(!persisted);
   const [dataVersion, setDataVersion] = useState(0);
   const [syncStatus, setSyncStatus] = useState<"loading" | "saving" | "saved" | "error">(persisted ? "loading" : "saved");
@@ -282,6 +335,22 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
       active = false;
       controller.abort();
     };
+  }, [persisted]);
+
+  useEffect(() => {
+    if (!persisted) return;
+    const controller = new AbortController();
+    fetch("/api/admin/stock/color-products", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as { ok?: boolean; products?: ColorProduct[]; error?: string };
+        if (!response.ok || !result.ok) throw new Error(result.error || "ไม่สามารถโหลดรายการฟิล์มสีได้");
+        setColorProducts(result.products ?? []);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setToast(error instanceof Error ? error.message : "ไม่สามารถโหลดรายการฟิล์มสีได้");
+      });
+    return () => controller.abort();
   }, [persisted]);
 
   useEffect(() => {
@@ -470,6 +539,8 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
             <ReceiveView
               units={units}
               setUnits={setUnits}
+              colorProducts={colorProducts}
+              setColorProducts={setColorProducts}
               onActivity={pushActivity}
               onToast={setToast}
               onOpenInventory={() => openView("inventory")}
@@ -478,6 +549,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
           {dataReady && view === "inventory" && (
             <InventoryView
               units={units}
+              colorProducts={colorProducts}
               initialSearch={globalSearch}
               onSelect={setSelectedUnit}
               onOpen={openView}
@@ -487,6 +559,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
             <MovementView
               units={units}
               setUnits={setUnits}
+              colorProducts={colorProducts}
               onActivity={pushActivity}
               onToast={setToast}
             />
@@ -495,6 +568,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
             <RollsView
               units={units}
               setUnits={setUnits}
+              colorProducts={colorProducts}
               onActivity={pushActivity}
               onToast={setToast}
             />
@@ -515,7 +589,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
       </nav>
 
       {selectedUnit && (
-        <UnitDrawer unit={selectedUnit} onClose={() => setSelectedUnit(null)} onOpen={openView} />
+        <UnitDrawer unit={selectedUnit} colorProducts={colorProducts} onClose={() => setSelectedUnit(null)} onOpen={openView} />
       )}
       {guideOpen && <WorkflowGuide onClose={() => setGuideOpen(false)} />}
       {toast && <div className={styles.toast}><span>✓</span>{toast}</div>}
@@ -529,6 +603,19 @@ function PageHeading({ eyebrow, title, copy, actions }: { eyebrow: string; title
       <div><p>{eyebrow}</p><h1>{title}</h1><span>{copy}</span></div>
       {actions && <div className={styles.headingActions}>{actions}</div>}
     </header>
+  );
+}
+
+function ColorFilmVisual({ product, unit, compact = false }: { product?: ColorProduct | null; unit?: StockUnit | null; compact?: boolean }) {
+  const colorName = product?.colorName ?? unit?.colorName ?? "ฟิล์มสี";
+  const colorCode = product?.colorCode ?? unit?.colorCode ?? "";
+  const colorHex = product?.colorHex ?? unit?.colorHex ?? "#73777F";
+  return (
+    <div className={cx(styles.colorFilmVisual, compact && styles.colorFilmVisualCompact)} style={{ backgroundColor: colorHex }} aria-label={`ตัวอย่างสี ${colorName}`}>
+      {product?.imageUrl ? <img src={product.imageUrl} alt={`ตัวอย่างฟิล์มสี ${colorName}`} /> : <span style={{ backgroundColor: colorHex }} />}
+      <i />
+      {!compact && <small>{colorName}{colorCode ? ` · ${colorCode}` : ""}</small>}
+    </div>
   );
 }
 
@@ -619,15 +706,17 @@ function TaskRow({ priority, tone, title, detail, meta, action, onClick }: { pri
   return <article className={styles.taskRow}><span className={cx(styles.taskPriority, styles[tone])}>{priority}</span><div><b>{title}</b><p>{detail}</p></div><small>{meta}</small><button onClick={onClick}>{action} →</button></article>;
 }
 
-function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: {
+function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActivity, onToast, onOpenInventory }: {
   units: StockUnit[];
   setUnits: React.Dispatch<React.SetStateAction<StockUnit[]>>;
+  colorProducts: ColorProduct[];
+  setColorProducts: React.Dispatch<React.SetStateAction<ColorProduct[]>>;
   onActivity: (item: Omit<Activity, "id" | "time">) => void;
   onToast: (message: string) => void;
   onOpenInventory: () => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [receiveRoute, setReceiveRoute] = useState<"scan" | "box">("scan");
+  const [receiveRoute, setReceiveRoute] = useState<"scan" | "box" | "color">("scan");
   const [boxMethod, setBoxMethod] = useState<"barcode" | "manual">("barcode");
   const [product, setProduct] = useState("NEXS BEGIN");
   const [lot, setLot] = useState("");
@@ -640,26 +729,69 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
   const [printLabel, setPrintLabel] = useState(false);
   const [prepared, setPrepared] = useState<StockUnit[]>([]);
   const [created, setCreated] = useState<StockUnit[]>([]);
+  const [colorEntryMode, setColorEntryMode] = useState<"catalog" | "new">("catalog");
+  const [selectedColorId, setSelectedColorId] = useState<number | null>(null);
+  const [colorSeriesName, setColorSeriesName] = useState("NEXS COLOR PPF");
+  const [colorName, setColorName] = useState("");
+  const [colorCode, setColorCode] = useState("");
+  const [colorSku, setColorSku] = useState("");
+  const [colorHex, setColorHex] = useState("#73777F");
+  const [colorSize, setColorSize] = useState("1.52 × 15 m");
+  const [colorMetres, setColorMetres] = useState(15);
+  const [colorPhoto, setColorPhoto] = useState<File | null>(null);
+  const [colorPhotoPreview, setColorPhotoPreview] = useState("");
+  const [colorSaving, setColorSaving] = useState(false);
   const mode: "existing" | "generate" = receiveRoute === "scan" ? "existing" : "generate";
-  const option = PRODUCT_OPTIONS.find((item) => item.value === product) ?? PRODUCT_OPTIONS[0];
-  const stepLabels = receiveRoute === "scan" ? ["สแกน QR", "ตรวจข้อมูล", "จัดเก็บ", "ยืนยันรับเข้า"] : ["ระบุสินค้า", "ตรวจข้อมูล", "สร้าง Serial", "ยืนยันรับเข้า"];
+  const selectedColorProduct = colorProducts.find((item) => item.id === selectedColorId) ?? null;
+  const standardOption = PRODUCT_OPTIONS.find((item) => item.value === product) ?? PRODUCT_OPTIONS[0];
+  const option: ProductOption = receiveRoute === "color" && selectedColorProduct ? {
+    value: selectedColorProduct.productName,
+    family: "COLOR FILM",
+    qr: false,
+    variant: selectedColorProduct.sizeLabel,
+    finish: `ฟิล์มสี · ${selectedColorProduct.colorName}${selectedColorProduct.colorCode ? ` · ${selectedColorProduct.colorCode}` : ""}`,
+    codes: [selectedColorProduct.skuCode],
+    skuCode: selectedColorProduct.skuCode,
+    metres: selectedColorProduct.metres,
+    configStatus: "confirmed",
+  } : standardOption;
+  const stepLabels = receiveRoute === "scan"
+    ? ["สแกน QR", "ตรวจข้อมูล", "จัดเก็บ", "ยืนยันรับเข้า"]
+    : receiveRoute === "color"
+      ? ["เลือกสีและรูป", "ตรวจข้อมูล", "สร้าง Serial", "ยืนยันรับเข้า"]
+      : ["ระบุสินค้า", "ตรวจข้อมูล", "สร้าง Serial", "ยืนยันรับเข้า"];
   const stepTitles = receiveRoute === "scan"
     ? ["สแกน QR เพื่อเริ่มรับเข้า", "ตรวจข้อมูลจาก Product Config", "ยืนยัน Lot และตำแหน่ง", "ยืนยันรับสินค้าเข้าคลัง"]
-    : ["ระบุ SKU ของกล่องที่ไม่มี Serial", "ตรวจข้อมูลก่อนสร้างรหัส", "สร้างตัวตนให้แต่ละม้วน", "ยืนยันรับสินค้าเข้าคลัง"];
+    : receiveRoute === "color"
+      ? ["เลือกสีจากคลังภาพ หรือเพิ่มสีใหม่", "ตรวจชื่อสี รูป และจำนวน", "สร้าง Serial ให้แต่ละม้วน", "ยืนยันรับฟิล์มสีเข้าคลัง"]
+      : ["ระบุ SKU ของกล่องที่ไม่มี Serial", "ตรวจข้อมูลก่อนสร้างรหัส", "สร้างตัวตนให้แต่ละม้วน", "ยืนยันรับสินค้าเข้าคลัง"];
 
-  function switchReceiveRoute(nextRoute: "scan" | "box") {
+  useEffect(() => {
+    if (!colorPhoto) {
+      setColorPhotoPreview("");
+      return;
+    }
+    const preview = URL.createObjectURL(colorPhoto);
+    setColorPhotoPreview(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [colorPhoto]);
+
+  function switchReceiveRoute(nextRoute: "scan" | "box" | "color") {
     setReceiveRoute(nextRoute);
     setStep(1);
     setBoxMethod("barcode");
-    setProduct(nextRoute === "scan" ? "NEXS BEGIN" : "TPU SATIN MATTE (HYDROPHILIC)");
-    setLot(nextRoute === "scan" ? "" : "RCV-260723");
+    const firstColor = colorProducts[0] ?? null;
+    setProduct(nextRoute === "scan" ? "NEXS BEGIN" : nextRoute === "color" ? firstColor?.productName ?? "" : "TPU SATIN MATTE (HYDROPHILIC)");
+    setSelectedColorId(nextRoute === "color" ? firstColor?.id ?? null : null);
+    setColorEntryMode(firstColor ? "catalog" : "new");
+    setLot(nextRoute === "scan" ? "" : nextRoute === "color" ? "RCV-COLOR" : "RCV-260723");
     setQuantity(1);
     setLocation("MAIN / RECEIVING");
     setQrCode("");
     setSkuCode("");
     setSkuDecoded(false);
     setDecoded(false);
-    setPrintLabel(nextRoute === "box");
+    setPrintLabel(nextRoute !== "scan");
     setPrepared([]);
     setCreated([]);
   }
@@ -713,7 +845,53 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
     return true;
   }
 
-  function goToReview() {
+  function selectColorProduct(next: ColorProduct) {
+    setSelectedColorId(next.id);
+    setProduct(next.productName);
+    setColorEntryMode("catalog");
+    setPrepared([]);
+  }
+
+  async function saveColorProduct() {
+    if (colorName.trim().length < 2) {
+      onToast("กรุณากรอกชื่อสีที่พนักงานใช้เรียก");
+      return null;
+    }
+    if (colorSeriesName.trim().length < 2 || colorSize.trim().length < 2 || colorMetres <= 0) {
+      onToast("กรุณาตรวจชื่อรุ่น ขนาด และจำนวนเมตรต่อม้วน");
+      return null;
+    }
+    setColorSaving(true);
+    try {
+      const form = new FormData();
+      form.set("seriesName", colorSeriesName);
+      form.set("colorName", colorName);
+      form.set("colorCode", colorCode);
+      form.set("skuCode", colorSku);
+      form.set("colorHex", colorHex);
+      form.set("sizeLabel", colorSize);
+      form.set("metres", String(colorMetres));
+      if (colorPhoto) form.set("photo", colorPhoto);
+      const response = await fetch("/api/admin/stock/color-products", { method: "POST", body: form });
+      const result = await response.json() as { ok?: boolean; product?: ColorProduct; error?: string };
+      if (!response.ok || !result.ok || !result.product) {
+        throw new Error(result.error || "ไม่สามารถบันทึกสีใหม่ได้");
+      }
+      const next = result.product;
+      setColorProducts((current) => [...current.filter((item) => item.id !== next.id), next].sort((a, b) => a.colorName.localeCompare(b.colorName, "th")));
+      selectColorProduct(next);
+      setColorSku(next.skuCode);
+      onToast(next.hasImage ? `บันทึก ${next.colorName} พร้อมรูปจริงแล้ว` : `บันทึก ${next.colorName} พร้อมตัวอย่างสีแล้ว`);
+      return next;
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "ไม่สามารถบันทึกสีใหม่ได้");
+      return null;
+    } finally {
+      setColorSaving(false);
+    }
+  }
+
+  async function goToReview() {
     if (receiveRoute === "scan") {
       if (!decoded) {
         onToast("สแกน QR ก่อนจึงไปขั้นตรวจข้อมูลได้");
@@ -722,7 +900,16 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
       setStep(2);
       return;
     }
-    if (boxMethod === "barcode" && !skuDecoded) {
+    if (receiveRoute === "color") {
+      if (colorEntryMode === "new") {
+        const saved = await saveColorProduct();
+        if (!saved) return;
+      } else if (!selectedColorProduct) {
+        onToast("กรุณาเลือกสีจากคลังภาพ หรือเพิ่มสีใหม่");
+        return;
+      }
+    }
+    if (receiveRoute === "box" && boxMethod === "barcode" && !skuDecoded) {
       onToast("สแกน Barcode รุ่นก่อน หรือเลือก “ไม่มีรหัสบนกล่อง”");
       return;
     }
@@ -763,6 +950,13 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
       initialMetres: option.metres,
       metres: option.metres,
       updatedAt: timestamp,
+      ...(receiveRoute === "color" && selectedColorProduct ? {
+        productKind: "color" as const,
+        colorProductId: selectedColorProduct.id,
+        colorName: selectedColorProduct.colorName,
+        colorCode: selectedColorProduct.colorCode,
+        colorHex: selectedColorProduct.colorHex,
+      } : {}),
     }));
     setPrepared(next);
     onToast(mode === "existing" ? "ผูก QR กับ Product Config แล้ว" : `สร้าง Serial แล้ว ${next.length} รายการ`);
@@ -786,8 +980,11 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
   function resetReceive() {
     setStep(1);
     setBoxMethod("barcode");
-    setProduct(receiveRoute === "scan" ? "NEXS BEGIN" : "TPU SATIN MATTE (HYDROPHILIC)");
-    setLot(receiveRoute === "scan" ? "" : "RCV-260723");
+    const firstColor = colorProducts[0] ?? null;
+    setProduct(receiveRoute === "scan" ? "NEXS BEGIN" : receiveRoute === "color" ? firstColor?.productName ?? "" : "TPU SATIN MATTE (HYDROPHILIC)");
+    setSelectedColorId(receiveRoute === "color" ? firstColor?.id ?? null : null);
+    setColorEntryMode(firstColor ? "catalog" : "new");
+    setLot(receiveRoute === "scan" ? "" : receiveRoute === "color" ? "RCV-COLOR" : "RCV-260723");
     setQuantity(1);
     setLocation("MAIN / RECEIVING");
     setPrepared([]);
@@ -796,12 +993,17 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
     setSkuCode("");
     setSkuDecoded(false);
     setDecoded(false);
-    setPrintLabel(receiveRoute === "box");
+    setPrintLabel(receiveRoute !== "scan");
+    setColorName("");
+    setColorCode("");
+    setColorSku("");
+    setColorHex("#73777F");
+    setColorPhoto(null);
   }
 
   return (
     <>
-      <PageHeading eyebrow="SCAN + SERIAL CENTER" title="รับสินค้าเข้า เริ่มจากการระบุสินค้า" copy="รองรับ QR ประจำม้วน, Barcode ระบุรุ่น และกล่องเปล่าไม่มีรหัส โดยระบบจะสร้าง Serial เฉพาะกรณีที่สินค้าไม่มี Serial เดิม" />
+      <PageHeading eyebrow="SCAN + SERIAL CENTER" title="รับสินค้าเข้า เริ่มจากการระบุสินค้า" copy="รองรับ QR ประจำม้วน, กล่องไม่มี Serial และฟิล์มสีที่ต้องดูรูปจริง โดยระบบจะสร้าง Serial เฉพาะสินค้าที่ไม่มี Serial เดิม" />
       <div className={styles.stepRail} aria-label={`ขั้นตอนที่ ${step} จาก 4`}>
         {stepLabels.map((label, index) => {
           const number = index + 1;
@@ -824,6 +1026,7 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
                 <div className={styles.receiveRouteTabs}>
                   <button type="button" className={receiveRoute === "scan" ? styles.routeActive : ""} onClick={() => switchReceiveRoute("scan")}><span>QR</span><div><b>สแกน QR ประจำม้วน</b><small>Begin / Prime / Pro / Ultimate</small></div></button>
                   <button type="button" className={receiveRoute === "box" ? styles.routeActive : ""} onClick={() => switchReceiveRoute("box")}><span>BOX</span><div><b>กล่องไม่มี Serial ประจำม้วน</b><small>สแกน Barcode รุ่น หรือเลือก SKU</small></div></button>
+                  <button type="button" className={receiveRoute === "color" ? styles.routeActive : ""} onClick={() => switchReceiveRoute("color")}><span className={styles.colorRouteIcon}>●</span><div><b>ฟิล์มสี</b><small>เลือกจากรูป หรือเพิ่มสีใหม่</small></div></button>
                 </div>
                 {receiveRoute === "scan" ? (
                   <>
@@ -847,6 +1050,85 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
                         <div><span>ประเภท</span><b>{option.finish}</b></div>
                       </div>
                     )}
+                  </>
+                ) : receiveRoute === "color" ? (
+                  <>
+                    <section className={styles.colorReceiveIntro}>
+                      <div>
+                        <p>COLOR FILM LIBRARY</p>
+                        <h3>เลือกรูปสีที่ตรงกับม้วนจริง</h3>
+                        <span>รูปและรหัสสีจะติดไปกับ Serial ทำให้พนักงานดูออกทันทีตอนรับเข้าและเบิกจ่าย</span>
+                      </div>
+                      <div className={styles.colorEntryTabs}>
+                        <button type="button" className={colorEntryMode === "catalog" ? styles.colorEntryActive : ""} disabled={!colorProducts.length} onClick={() => setColorEntryMode("catalog")}>เลือกสีที่มีแล้ว</button>
+                        <button type="button" className={colorEntryMode === "new" ? styles.colorEntryActive : ""} onClick={() => { setColorEntryMode("new"); setSelectedColorId(null); setProduct(""); }}>＋ เพิ่มสีใหม่</button>
+                      </div>
+                    </section>
+
+                    {colorEntryMode === "catalog" && colorProducts.length > 0 ? (
+                      <>
+                        <div className={styles.colorProductGrid}>
+                          {colorProducts.map((colorProduct) => (
+                            <button
+                              type="button"
+                              className={selectedColorId === colorProduct.id ? styles.colorProductSelected : ""}
+                              key={colorProduct.id}
+                              onClick={() => selectColorProduct(colorProduct)}
+                            >
+                              <ColorFilmVisual product={colorProduct} />
+                              <span>{colorProduct.seriesName}</span>
+                              <b>{colorProduct.colorName}</b>
+                              <small>{colorProduct.colorCode || colorProduct.skuCode} · {colorProduct.sizeLabel}</small>
+                              {selectedColorId === colorProduct.id && <i>✓ เลือกแล้ว</i>}
+                            </button>
+                          ))}
+                          <button type="button" className={styles.addColorProduct} onClick={() => { setColorEntryMode("new"); setSelectedColorId(null); setProduct(""); }}>
+                            <span>＋</span><b>เพิ่มสีใหม่</b><small>ถ่ายรูปหรือเลือกรูปจากเครื่อง</small>
+                          </button>
+                        </div>
+                        {selectedColorProduct && (
+                          <div className={styles.selectedColorStrip}>
+                            <ColorFilmVisual product={selectedColorProduct} compact />
+                            <div><span>สีที่เลือก</span><b>{selectedColorProduct.productName}</b><small>SKU {selectedColorProduct.skuCode} · {selectedColorProduct.metres} เมตรต่อม้วน</small></div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <section className={styles.newColorForm}>
+                        <div className={styles.colorPhotoColumn}>
+                          <div className={styles.colorPhotoPreview} style={{ backgroundColor: colorHex }}>
+                            {colorPhotoPreview ? <img src={colorPhotoPreview} alt="ตัวอย่างฟิล์มสีที่กำลังเพิ่ม" /> : <><span>รูปสีจริง</span><small>ยังไม่ได้เลือกรูป</small></>}
+                          </div>
+                          <label className={styles.colorUploadButton}>
+                            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => setColorPhoto(event.target.files?.[0] ?? null)} />
+                            <span>▣</span><b>{colorPhoto ? "เปลี่ยนรูป" : "ถ่ายรูป / เลือกรูป"}</b>
+                          </label>
+                          <small>แนะนำให้ถ่ายชิ้นตัวอย่างกลางแสงธรรมชาติ ระบบจะย่อรูปให้เหมาะกับการใช้งาน</small>
+                        </div>
+                        <div className={styles.colorFields}>
+                          <div className={styles.formColumns}>
+                            <label><span>ชื่อรุ่น / Series</span><input value={colorSeriesName} onChange={(event) => setColorSeriesName(event.target.value)} placeholder="เช่น NEXS COLOR PPF" /></label>
+                            <label><span>ชื่อสีที่ใช้เรียก *</span><input value={colorName} onChange={(event) => setColorName(event.target.value)} placeholder="เช่น Midnight Purple" /></label>
+                          </div>
+                          <div className={styles.formColumns}>
+                            <label><span>รหัสสี (ถ้ามี)</span><input value={colorCode} onChange={(event) => setColorCode(event.target.value)} placeholder="เช่น MP-07" /></label>
+                            <label><span>SKU (เว้นว่างให้ระบบสร้าง)</span><input value={colorSku} onChange={(event) => setColorSku(event.target.value.toUpperCase())} placeholder="เช่น CLR-MP07" /></label>
+                          </div>
+                          <div className={styles.formColumns}>
+                            <label><span>ขนาดม้วน</span><input value={colorSize} onChange={(event) => setColorSize(event.target.value)} /></label>
+                            <label><span>เมตรต่อม้วน</span><input type="number" min={1} max={10000} step=".5" value={colorMetres} onChange={(event) => setColorMetres(Number(event.target.value))} /></label>
+                          </div>
+                          <label className={styles.colorPickerRow}><span>สีตัวอย่างสำรอง</span><div><input type="color" value={colorHex} onChange={(event) => setColorHex(event.target.value.toUpperCase())} /><b style={{ backgroundColor: colorHex }} /><code>{colorHex}</code><small>ใช้แสดงแทนเมื่อยังไม่มีรูปถ่าย</small></div></label>
+                        </div>
+                      </section>
+                    )}
+
+                    <div className={styles.formColumns}>
+                      <label><span>รอบรับเข้า / Lot</span><input value={lot} onChange={(event) => setLot(event.target.value)} /><small>ถ้าไม่มี Lot ให้ใช้เลขรอบรับเข้า</small></label>
+                      <label><span>จำนวนม้วน</span><input type="number" min={1} max={20} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
+                    </div>
+                    <label><span>ตำแหน่งจัดเก็บ</span><select value={location} onChange={(event) => setLocation(event.target.value)}><option>MAIN / RECEIVING</option><option>MAIN / COLOR FILM</option><option>MAIN / B01 / C03</option><option>SHOWROOM / S01</option><option>QUARANTINE / Q01</option></select></label>
+                    {colorEntryMode === "new" && !colorPhoto && <div className={styles.colorPhotoHint}><span>รูป</span><div><b>ยังไม่มีรูปถ่ายจริง</b><p>รับเข้าได้โดยใช้สีตัวอย่างก่อน และเพิ่มรูปจริงภายหลังได้ แต่การมีรูปจะช่วยลดการหยิบผิดสี</p></div></div>}
                   </>
                 ) : (
                   <>
@@ -900,6 +1182,14 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
 
             {step === 2 && (
               <div className={styles.receiveReview}>
+                {receiveRoute === "color" && selectedColorProduct && (
+                  <div className={styles.colorReviewVisual}>
+                    <ColorFilmVisual product={selectedColorProduct} />
+                    <span>รูปและสีที่พนักงานจะเห็น</span>
+                    <b>{selectedColorProduct.colorName}</b>
+                    <small>{selectedColorProduct.colorCode || selectedColorProduct.skuCode} · ใช้รูปนี้กับทุกม้วนในสีเดียวกัน</small>
+                  </div>
+                )}
                 {receiveRoute === "scan" && <div><span>Serial จาก QR</span><b>{qrCode}</b><small>ใช้เป็นรหัสประจำม้วนนี้</small></div>}
                 <div><span>สินค้า</span><b>{product}</b><small>{option.finish}</small></div>
                 <div><span>ขนาด</span><b>{option.variant}</b></div>
@@ -950,11 +1240,12 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
             )}
 
             {step === 4 && (
-              <div className={styles.finalReceive}>
-                <span className={styles.finalCheck}>✓</span>
-                <p>พร้อมบันทึกเข้าคลัง</p>
-                <h3>{product} · {prepared.length} ม้วน</h3>
-                <dl>
+                <div className={styles.finalReceive}>
+                  <span className={styles.finalCheck}>✓</span>
+                  <p>พร้อมบันทึกเข้าคลัง</p>
+                  <h3>{product} · {prepared.length} ม้วน</h3>
+                  {receiveRoute === "color" && selectedColorProduct && <ColorFilmVisual product={selectedColorProduct} />}
+                  <dl>
                   <div><dt>Lot</dt><dd>{lot.toUpperCase()}</dd></div>
                   <div><dt>ตำแหน่ง</dt><dd>{location}</dd></div>
                   <div><dt>วิธีสร้างรหัส</dt><dd>{mode === "existing" ? "QR เดิมจากสินค้า" : "ระบบสร้าง Serial ใหม่"}</dd></div>
@@ -967,7 +1258,7 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
           </div>
           <footer>
             {step === 1 ? <button type="button" className={styles.secondaryButton} onClick={resetReceive}>ล้างข้อมูล</button> : <button type="button" className={styles.secondaryButton} onClick={() => setStep((step - 1) as 1 | 2 | 3)}>← ย้อนกลับ</button>}
-            {step === 1 && <button className={styles.primaryButton} type="button" disabled={(receiveRoute === "scan" && !decoded) || (receiveRoute === "box" && boxMethod === "barcode" && !skuDecoded)} onClick={goToReview}>{receiveRoute === "scan" ? decoded ? "ถัดไป: ตรวจข้อมูลจาก QR →" : "สแกน QR ก่อนจึงไปต่อได้" : boxMethod === "barcode" ? skuDecoded ? "ถัดไป: ตรวจข้อมูล SKU →" : "สแกน Barcode รุ่นก่อนจึงไปต่อได้" : "ถัดไป: ตรวจข้อมูล SKU →"}</button>}
+            {step === 1 && <button className={styles.primaryButton} type="button" disabled={(receiveRoute === "scan" && !decoded) || (receiveRoute === "box" && boxMethod === "barcode" && !skuDecoded) || colorSaving || (receiveRoute === "color" && colorEntryMode === "catalog" && !selectedColorProduct)} onClick={goToReview}>{receiveRoute === "scan" ? decoded ? "ถัดไป: ตรวจข้อมูลจาก QR →" : "สแกน QR ก่อนจึงไปต่อได้" : receiveRoute === "color" ? colorSaving ? "กำลังบันทึกรูปและข้อมูลสี…" : colorEntryMode === "new" ? "บันทึกสีและตรวจข้อมูล →" : selectedColorProduct ? "ถัดไป: ตรวจรูปและสี →" : "เลือกสีก่อนจึงไปต่อได้" : boxMethod === "barcode" ? skuDecoded ? "ถัดไป: ตรวจข้อมูล SKU →" : "สแกน Barcode รุ่นก่อนจึงไปต่อได้" : "ถัดไป: ตรวจข้อมูล SKU →"}</button>}
             {step === 2 && <button className={styles.primaryButton} type="button" onClick={goFromReview}>{mode === "existing" ? "ข้อมูลถูกต้อง: ยืนยันที่จัดเก็บ →" : "ข้อมูลถูกต้อง: ไปสร้าง Serial →"}</button>}
             {step === 3 && <button className={styles.primaryButton} type="button" disabled={!prepared.length} onClick={() => setStep(4)}>{prepared.length ? "ถัดไป: ยืนยันรับเข้า →" : "สร้าง Serial ก่อนจึงไปต่อได้"}</button>}
             {step === 4 && <button className={styles.primaryButton} type="button" disabled={!prepared.length || created.length > 0} onClick={completeReceive}>{created.length ? "รับเข้าเรียบร้อยแล้ว ✓" : `ยืนยันรับเข้าคลัง ${prepared.length} ม้วน →`}</button>}
@@ -980,6 +1271,8 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
             <ol>
               {(receiveRoute === "scan"
                 ? [["สแกน QR", "เริ่มจาก QR บนสินค้า"], ["ตรวจ Product Config", "ระบบเติมรุ่น ขนาด และประเภท"], ["ยืนยันที่จัดเก็บ", "Lot และตำแหน่งของม้วน"], ["ยืนยันรับเข้าคลัง", "เพิ่มสต็อกและบันทึกประวัติ"]]
+                : receiveRoute === "color"
+                  ? [["เลือกสีและรูป", "เลือกจากคลังภาพ หรือถ่ายรูปสีใหม่"], ["ตรวจรูปและรหัสสี", "ทบทวนสี ขนาด จำนวน และ Lot"], ["สร้าง Serial", "หนึ่งรหัสต่อหนึ่งม้วนสี"], ["ยืนยันรับเข้าคลัง", "รูปสีจะแสดงทุกจุดที่ใช้งาน"]]
                 : [[boxMethod === "barcode" ? "สแกน Barcode รุ่น" : "เลือก SKU", boxMethod === "barcode" ? "Barcode ระบุรุ่น ไม่ใช่ Serial" : "สำหรับกล่องเปล่าที่ไม่มีรหัส"], ["ตรวจความถูกต้อง", "ทบทวน SKU รอบรับเข้า จำนวน และตำแหน่ง"], ["สร้าง Serial", "หนึ่งรหัสต่อหนึ่งม้วน"], ["ยืนยันรับเข้าคลัง", "เพิ่มสต็อกและบันทึกประวัติ"]]
               ).map(([title, copy], index) => {
                 const number = index + 1;
@@ -988,7 +1281,7 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
               })}
             </ol>
           </article>
-          <article className={styles.ruleCard}><span>ตอนนี้ต้องทำอะไร?</span><h3>{step === 1 ? receiveRoute === "scan" ? "จ่อ Scanner ที่ QR ประจำม้วน" : boxMethod === "barcode" ? "สแกน Barcode ระบุรุ่น" : "เลือก SKU ของกล่องจริง" : step === 2 ? "ตรวจข้อมูลที่ระบบอ่านได้" : step === 3 ? mode === "existing" ? "ยืนยันตำแหน่งจัดเก็บ" : "กดสร้าง Serial" : "ตรวจครั้งสุดท้ายแล้วกดยืนยัน"}</h3><p>{step === 4 ? "หลังยืนยันจึงจะมียอดสินค้าเพิ่มในคลัง" : receiveRoute === "scan" && step === 1 ? "เมื่อสแกนสำเร็จ รุ่น ขนาด และประเภทจะปรากฏโดยอัตโนมัติ" : receiveRoute === "box" && boxMethod === "barcode" && step === 1 ? "Barcode นี้ใช้ระบุ SKU เท่านั้น ระบบจะสร้าง Serial ใหม่ในขั้นที่ 3" : "ปุ่มดำเนินการอยู่ด้านล่างของกล่องด้านซ้ายเสมอ"}</p></article>
+          <article className={styles.ruleCard}><span>ตอนนี้ต้องทำอะไร?</span><h3>{step === 1 ? receiveRoute === "scan" ? "จ่อ Scanner ที่ QR ประจำม้วน" : receiveRoute === "color" ? colorEntryMode === "new" ? "ใส่ชื่อสีและถ่ายรูปจริง" : "เลือกสีที่ตรงกับม้วนจริง" : boxMethod === "barcode" ? "สแกน Barcode ระบุรุ่น" : "เลือก SKU ของกล่องจริง" : step === 2 ? receiveRoute === "color" ? "เทียบรูปกับสีของจริงอีกครั้ง" : "ตรวจข้อมูลที่ระบบอ่านได้" : step === 3 ? mode === "existing" ? "ยืนยันตำแหน่งจัดเก็บ" : "กดสร้าง Serial" : "ตรวจครั้งสุดท้ายแล้วกดยืนยัน"}</h3><p>{step === 4 ? "หลังยืนยันจึงจะมียอดสินค้าเพิ่มในคลัง" : receiveRoute === "scan" && step === 1 ? "เมื่อสแกนสำเร็จ รุ่น ขนาด และประเภทจะปรากฏโดยอัตโนมัติ" : receiveRoute === "color" && step === 1 ? "ใช้รูปถ่ายจริงเป็นหลัก และสีตัวอย่างเป็นข้อมูลสำรองเมื่อยังไม่มีรูป" : receiveRoute === "box" && boxMethod === "barcode" && step === 1 ? "Barcode นี้ใช้ระบุ SKU เท่านั้น ระบบจะสร้าง Serial ใหม่ในขั้นที่ 3" : "ปุ่มดำเนินการอยู่ด้านล่างของกล่องด้านซ้ายเสมอ"}</p></article>
         </aside>
       </section>
       {created.length > 0 && (
@@ -1002,12 +1295,12 @@ function ReceiveView({ units, setUnits, onActivity, onToast, onOpenInventory }: 
   );
 }
 
-function InventoryView({ units, initialSearch, onSelect, onOpen }: { units: StockUnit[]; initialSearch: string; onSelect: (unit: StockUnit) => void; onOpen: (view: ViewKey) => void }) {
+function InventoryView({ units, colorProducts, initialSearch, onSelect, onOpen }: { units: StockUnit[]; colorProducts: ColorProduct[]; initialSearch: string; onSelect: (unit: StockUnit) => void; onOpen: (view: ViewKey) => void }) {
   const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState<"all" | UnitStatus | "unprinted" | "pending-qr">("all");
   const filtered = units.filter((unit) => {
     const keyword = search.trim().toLowerCase();
-    const matchesSearch = !keyword || [unit.serial, unit.product, unit.lot, unit.location].some((value) => value.toLowerCase().includes(keyword));
+    const matchesSearch = !keyword || [unit.serial, unit.product, unit.colorName ?? "", unit.colorCode ?? "", unit.lot, unit.location].some((value) => value.toLowerCase().includes(keyword));
     const matchesStatus = status === "all"
       || (status === "unprinted" ? unit.labelStatus === "unprinted" : status === "pending-qr" ? unit.source === "opening-balance" : unit.status === status);
     return matchesSearch && matchesStatus;
@@ -1041,6 +1334,18 @@ function InventoryView({ units, initialSearch, onSelect, onOpen }: { units: Stoc
               </button>
             );
           })}
+          {colorProducts.map((colorProduct) => {
+            const current = units.filter((unit) => unit.colorProductId === colorProduct.id && !["issued", "damaged"].includes(unit.status)).length;
+            return (
+              <button className={styles.colorBalanceCard} key={`color-${colorProduct.id}`} onClick={() => { setSearch(colorProduct.colorName); setStatus("all"); }}>
+                <ColorFilmVisual product={colorProduct} compact />
+                <span>ฟิล์มสี · {colorProduct.colorCode || colorProduct.skuCode}</span>
+                <b>{colorProduct.colorName}</b>
+                <strong>{current}</strong>
+                <small>ม้วนคงเหลือ · {colorProduct.sizeLabel}</small>
+              </button>
+            );
+          })}
         </div>
       </section>
       <section className={styles.inventoryPanel}>
@@ -1050,18 +1355,24 @@ function InventoryView({ units, initialSearch, onSelect, onOpen }: { units: Stoc
         </header>
         <div className={styles.inventoryTable}>
           <div className={styles.tableHead}><span>Serial / Unit</span><span>สินค้า</span><span>Lot</span><span>คงเหลือ</span><span>ตำแหน่ง</span><span>สถานะ</span><span>Label</span><span /></div>
-          {filtered.map((unit) => (
-            <button className={styles.tableRow} key={unit.serial} onClick={() => onSelect(unit)}>
-              <span><b>{unit.serial}</b><small>{serialSourceLabel(unit.source)}</small></span>
-              <span><b>{unit.product}</b><small>{unit.variant}</small></span>
-              <span>{unit.lot}</span>
-              <span><b>{unit.metres.toFixed(1)} m</b><small>จาก {unit.initialMetres.toFixed(0)} m</small></span>
-              <span>{unit.location}</span>
-              <span><i className={styles[`status-${unit.status}`]}>{STATUS_LABELS[unit.status]}</i></span>
-              <span><i className={unit.labelStatus === "printed" ? styles.labelPrinted : styles.labelUnprinted}>{unit.labelStatus === "printed" ? "พิมพ์แล้ว" : "ยังไม่พิมพ์"}</i></span>
-              <span>›</span>
-            </button>
-          ))}
+          {filtered.map((unit) => {
+            const colorProduct = colorProductForUnit(unit, colorProducts);
+            return (
+              <button className={styles.tableRow} key={unit.serial} onClick={() => onSelect(unit)}>
+                <span><b>{unit.serial}</b><small>{serialSourceLabel(unit.source)}</small></span>
+                <span className={styles.inventoryProductCell}>
+                  {unit.productKind === "color" && <ColorFilmVisual product={colorProduct} unit={unit} compact />}
+                  <span><b>{unit.product}</b><small>{unit.productKind === "color" ? colorProductLabel(unit) : unit.variant}</small></span>
+                </span>
+                <span>{unit.lot}</span>
+                <span><b>{unit.metres.toFixed(1)} m</b><small>จาก {unit.initialMetres.toFixed(0)} m</small></span>
+                <span>{unit.location}</span>
+                <span><i className={styles[`status-${unit.status}`]}>{STATUS_LABELS[unit.status]}</i></span>
+                <span><i className={unit.labelStatus === "printed" ? styles.labelPrinted : styles.labelUnprinted}>{unit.labelStatus === "printed" ? "พิมพ์แล้ว" : "ยังไม่พิมพ์"}</i></span>
+                <span>›</span>
+              </button>
+            );
+          })}
           {!filtered.length && <div className={styles.emptyState}><span>⌕</span><h3>ไม่พบสินค้าที่ค้นหา</h3><p>ลองเปลี่ยนคำค้นหรือเลือกสถานะ “ทั้งหมด”</p></div>}
         </div>
         <footer><span>แสดง {filtered.length} จาก {units.length} หน่วย</span><div><button disabled>‹</button><button className={styles.pageCurrent} disabled>1</button><button disabled>›</button></div></footer>
@@ -1070,9 +1381,10 @@ function InventoryView({ units, initialSearch, onSelect, onOpen }: { units: Stoc
   );
 }
 
-function MovementView({ units, setUnits, onActivity, onToast }: {
+function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
   units: StockUnit[];
   setUnits: React.Dispatch<React.SetStateAction<StockUnit[]>>;
+  colorProducts: ColorProduct[];
   onActivity: (item: Omit<Activity, "id" | "time">) => void;
   onToast: (message: string) => void;
 }) {
@@ -1092,6 +1404,8 @@ function MovementView({ units, setUnits, onActivity, onToast }: {
   const [destination, setDestination] = useState("Dealer / Job #2841");
   const selected = eligible.find((unit) => unit.serial === serial);
   const selectedConfig = PRODUCT_OPTIONS.find((product) => product.value === selected?.product);
+  const selectedColorProduct = selected ? colorProductForUnit(selected, colorProducts) : null;
+  const unlabelledProducts = [...new Set(eligible.filter((unit) => unit.labelStatus === "unprinted").map((unit) => unit.product))];
 
   useEffect(() => {
     if (action === "issue") {
@@ -1102,6 +1416,7 @@ function MovementView({ units, setUnits, onActivity, onToast }: {
       setIssueType("full");
       setMetres(5);
       setDestination("Dealer / Job #2841");
+      setUnlabelledProduct(unlabelledProducts[0] ?? "");
       return;
     }
     const next = units.find((unit) => action === "return" ? ["issued", "in-transit"].includes(unit.status) : !["issued", "damaged"].includes(unit.status));
@@ -1316,7 +1631,7 @@ function MovementView({ units, setUnits, onActivity, onToast }: {
                     <div className={styles.unlabelledIssuePanel}>
                       <span>□</span>
                       <div><p>NO PHYSICAL LABEL</p><h3>เลือก SKU ของกล่องที่หยิบจริง</h3><small>ระบบจะเลือก Serial ภายในที่เก่าที่สุดตาม FIFO ให้หนึ่งกล่อง</small></div>
-                      <label><span>สินค้า</span><select value={unlabelledProduct} onChange={(event) => setUnlabelledProduct(event.target.value)}>{PRODUCT_OPTIONS.filter((productOption) => !productOption.qr).map((productOption) => <option key={productOption.value}>{productOption.value}</option>)}</select></label>
+                      <label><span>สินค้า</span><select value={unlabelledProduct} onChange={(event) => setUnlabelledProduct(event.target.value)}>{unlabelledProducts.map((productName) => <option key={productName}>{productName}</option>)}</select></label>
                       <div className={styles.unlabelledCount}><span>พร้อมเบิกและยังไม่มี Label</span><b>{eligible.filter((unit) => unit.product === unlabelledProduct && unit.labelStatus === "unprinted").length} กล่อง</b></div>
                       <button type="button" className={styles.primaryButton} onClick={selectUnlabelledForIssue}>เลือก Serial เก่าสุดตาม FIFO →</button>
                       <small>ควรแยกสินค้าแต่ละ SKU และ Lot ออกจากกัน เพราะไม่สามารถยืนยันกล่องเฉพาะใบด้วยการสแกนได้</small>
@@ -1333,11 +1648,12 @@ function MovementView({ units, setUnits, onActivity, onToast }: {
                 <>
                   <div className={styles.movementStep}><span>2</span><div><p>PRODUCT FOUND</p><h2>ตรวจข้อมูลที่ระบบอ่านจาก Serial</h2></div></div>
                   <div className={styles.issueScanResult}>
+                    {selected.productKind === "color" && <ColorFilmVisual product={selectedColorProduct} unit={selected} />}
                     <header><span>✓</span><div><b>พบสินค้าในสต็อก</b><small>{selected.labelStatus === "unprinted" ? "เลือกจากกลุ่มไม่มี Label ตาม FIFO" : "อ่านจาก Serial ประจำม้วน"}</small></div></header>
                     <div><span>Serial</span><b>{selected.serial}</b></div>
                     <div><span>สินค้า</span><b>{selected.product}</b></div>
                     <div><span>ขนาด</span><b>{selected.variant}</b></div>
-                    <div><span>ประเภท</span><b>{selectedConfig?.finish ?? "—"}</b></div>
+                    <div><span>ประเภท</span><b>{selected.productKind === "color" ? colorProductLabel(selected) : selectedConfig?.finish ?? "—"}</b></div>
                     <div><span>คงเหลือ</span><b>{selected.metres.toFixed(1)} เมตร</b></div>
                     <div><span>ตำแหน่ง</span><b>{selected.location}</b></div>
                   </div>
@@ -1415,9 +1731,10 @@ function MovementView({ units, setUnits, onActivity, onToast }: {
         <aside className={styles.unitPreview}>
           <div className={styles.previewTop}><span>{action === "issue" ? "SCAN RESULT" : "UNIT PREVIEW"}</span><i className={selected ? styles[`status-${selected.status}`] : ""}>{selected ? STATUS_LABELS[selected.status] : action === "issue" ? "รอสแกน" : "ไม่พบสินค้า"}</i></div>
           {selected ? <>
+            {selected.productKind === "color" && <ColorFilmVisual product={selectedColorProduct} unit={selected} />}
             <h2>{selected.product}</h2><p>{selected.serial}</p>
             <div className={styles.rollGauge}><div style={{ width: `${Math.max(4, (selected.metres / selected.initialMetres) * 100)}%` }} /><span>{selected.metres.toFixed(1)} m</span></div>
-            <dl><div><dt>ขนาด</dt><dd>{selected.variant}</dd></div><div><dt>ประเภท</dt><dd>{selectedConfig?.finish ?? "—"}</dd></div><div><dt>Lot</dt><dd>{selected.lot}</dd></div><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>Label</dt><dd>{selected.labelStatus === "printed" ? "พิมพ์แล้ว" : "ยังไม่พิมพ์"}</dd></div><div><dt>อัปเดตล่าสุด</dt><dd>{selected.updatedAt}</dd></div></dl>
+            <dl><div><dt>ขนาด</dt><dd>{selected.variant}</dd></div><div><dt>ประเภท</dt><dd>{selected.productKind === "color" ? colorProductLabel(selected) : selectedConfig?.finish ?? "—"}</dd></div><div><dt>Lot</dt><dd>{selected.lot}</dd></div><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>Label</dt><dd>{selected.labelStatus === "printed" ? "พิมพ์แล้ว" : "ยังไม่พิมพ์"}</dd></div><div><dt>อัปเดตล่าสุด</dt><dd>{selected.updatedAt}</dd></div></dl>
             <div className={styles.nextState}><span>หลังยืนยัน</span><b>{action === "issue" ? issueType === "full" ? "ISSUED · 0 m" : `OPEN · ${Math.max(0, selected.metres - metres).toFixed(1)} m` : action === "transfer" ? `ย้ายไป ${destination}` : action === "damage" ? "เสียหาย · QUARANTINE" : "AVAILABLE"}</b></div>
           </> : action === "issue" ? (
             <div className={styles.issueAwaiting}>
@@ -1433,9 +1750,10 @@ function MovementView({ units, setUnits, onActivity, onToast }: {
   );
 }
 
-function RollsView({ units, setUnits, onActivity, onToast }: {
+function RollsView({ units, setUnits, colorProducts, onActivity, onToast }: {
   units: StockUnit[];
   setUnits: React.Dispatch<React.SetStateAction<StockUnit[]>>;
+  colorProducts: ColorProduct[];
   onActivity: (item: Omit<Activity, "id" | "time">) => void;
   onToast: (message: string) => void;
 }) {
@@ -1468,7 +1786,8 @@ function RollsView({ units, setUnits, onActivity, onToast }: {
         <div className={styles.rollCards}>
           {openRolls.map((roll) => {
             const percent = (roll.metres / roll.initialMetres) * 100;
-            return <button className={cx(styles.rollCard, selected === roll.serial && styles.rollSelected)} onClick={() => setSelected(roll.serial)} key={roll.serial}><header><span className={percent <= 20 ? styles.red : styles.green}>OPEN</span><small>{roll.updatedAt}</small></header><h3>{roll.product}</h3><p>{roll.serial}</p><div className={styles.rollVisual}><span style={{ ["--fill" as string]: `${percent}%` }} /><div><b>{roll.metres.toFixed(1)}</b><small>/ {roll.initialMetres.toFixed(0)} m</small></div></div><footer><span>{roll.location}</span><b>{percent <= 20 ? "ใกล้หมด" : "พร้อมใช้งาน"}</b></footer></button>;
+            const colorProduct = colorProductForUnit(roll, colorProducts);
+            return <button className={cx(styles.rollCard, selected === roll.serial && styles.rollSelected)} onClick={() => setSelected(roll.serial)} key={roll.serial}><header><span className={percent <= 20 ? styles.red : styles.green}>OPEN</span><small>{roll.updatedAt}</small></header>{roll.productKind === "color" && <ColorFilmVisual product={colorProduct} unit={roll} compact />}<h3>{roll.product}</h3><p>{roll.productKind === "color" ? colorProductLabel(roll) : roll.serial}</p><div className={styles.rollVisual}><span style={{ ["--fill" as string]: `${percent}%` }} /><div><b>{roll.metres.toFixed(1)}</b><small>/ {roll.initialMetres.toFixed(0)} m</small></div></div><footer><span>{roll.location}</span><b>{percent <= 20 ? "ใกล้หมด" : "พร้อมใช้งาน"}</b></footer></button>;
           })}
         </div>
         <form className={styles.usageForm} onSubmit={recordUsage}>
@@ -1675,14 +1994,15 @@ function ReportsView({ activity, units }: { activity: Activity[]; units: StockUn
   );
 }
 
-function UnitDrawer({ unit, onClose, onOpen }: { unit: StockUnit; onClose: () => void; onOpen: (view: ViewKey) => void }) {
+function UnitDrawer({ unit, colorProducts, onClose, onOpen }: { unit: StockUnit; colorProducts: ColorProduct[]; onClose: () => void; onOpen: (view: ViewKey) => void }) {
   const remaining = (unit.metres / unit.initialMetres) * 100;
+  const colorProduct = colorProductForUnit(unit, colorProducts);
   return (
     <div className={styles.drawerBackdrop} onMouseDown={onClose}>
       <aside className={styles.drawer} onMouseDown={(event) => event.stopPropagation()} aria-label={`รายละเอียด ${unit.serial}`}>
         <header><div><p>STOCK UNIT</p><h2>รายละเอียดหน่วยสินค้า</h2></div><button onClick={onClose} aria-label="ปิด">×</button></header>
-        <div className={styles.drawerHero}><span className={styles[`status-${unit.status}`]}>{STATUS_LABELS[unit.status]}</span><h3>{unit.product}</h3><p>{unit.serial}</p><div className={styles.bigGauge}><i style={{ width: `${Math.max(3, remaining)}%` }} /><b>{unit.metres.toFixed(1)} m</b><small>จาก {unit.initialMetres.toFixed(0)} เมตร</small></div></div>
-        <dl className={styles.drawerFacts}><div><dt>Variant</dt><dd>{unit.variant}</dd></div><div><dt>Lot / Batch</dt><dd>{unit.lot}</dd></div><div><dt>ตำแหน่ง</dt><dd>{unit.location}</dd></div><div><dt>Serial source</dt><dd>{serialSourceLabel(unit.source)}</dd></div><div><dt>Label status</dt><dd>{unit.labelStatus === "printed" ? "พิมพ์แล้ว" : "ยังไม่พิมพ์"}</dd></div><div><dt>อัปเดตล่าสุด</dt><dd>{unit.updatedAt}</dd></div></dl>
+        <div className={styles.drawerHero}>{unit.productKind === "color" && <ColorFilmVisual product={colorProduct} unit={unit} />}<span className={styles[`status-${unit.status}`]}>{STATUS_LABELS[unit.status]}</span><h3>{unit.product}</h3><p>{unit.serial}</p><div className={styles.bigGauge}><i style={{ width: `${Math.max(3, remaining)}%` }} /><b>{unit.metres.toFixed(1)} m</b><small>จาก {unit.initialMetres.toFixed(0)} เมตร</small></div></div>
+        <dl className={styles.drawerFacts}>{unit.productKind === "color" && <><div><dt>ชื่อสี</dt><dd>{unit.colorName || "—"}</dd></div><div><dt>รหัสสี</dt><dd>{unit.colorCode || "—"}</dd></div></>}<div><dt>Variant</dt><dd>{unit.variant}</dd></div><div><dt>Lot / Batch</dt><dd>{unit.lot}</dd></div><div><dt>ตำแหน่ง</dt><dd>{unit.location}</dd></div><div><dt>Serial source</dt><dd>{serialSourceLabel(unit.source)}</dd></div><div><dt>Label status</dt><dd>{unit.labelStatus === "printed" ? "พิมพ์แล้ว" : "ยังไม่พิมพ์"}</dd></div><div><dt>อัปเดตล่าสุด</dt><dd>{unit.updatedAt}</dd></div></dl>
         {unit.source === "opening-balance" && <div className={styles.drawerNotice}><b>รอผูก QR จริงจากสินค้า</b><p>หน่วยนี้อยู่ในยอดตั้งต้นแล้ว เมื่อสแกน QR จริงเพื่อเบิกจ่าย ระบบจะใช้ QR นั้นแทนรหัสชั่วคราวโดยไม่เพิ่มยอดซ้ำ</p></div>}
         {unit.labelStatus === "unprinted" && <div className={styles.drawerNotice}><b>ยังไม่ได้พิมพ์ Label</b><p>เบิกได้ผ่าน SKU + FIFO แต่ระบุกล่องเฉพาะใบด้วยการสแกนไม่ได้ ควรพิมพ์ Label ก่อนนำไปปะปนกับ Lot อื่น</p><button disabled>ยังไม่เชื่อมเครื่องพิมพ์ Label</button></div>}
         <div className={styles.drawerTimeline}><p>ประวัติล่าสุด</p><article><span /><div><b>สถานะปัจจุบัน · {STATUS_LABELS[unit.status]}</b><small>{unit.updatedAt} · ผู้ใช้งานปัจจุบัน</small></div></article><article><span /><div><b>รับสินค้าเข้าคลัง</b><small>{unit.lot} · MAIN WAREHOUSE</small></div></article></div>
@@ -1694,8 +2014,8 @@ function UnitDrawer({ unit, onClose, onOpen }: { unit: StockUnit; onClose: () =>
 
 function WorkflowGuide({ onClose }: { onClose: () => void }) {
   const steps = [
-    ["01", "ระบุสินค้ารับเข้า", "สแกน QR ประจำม้วน, สแกน Barcode รุ่น หรือเลือก SKU ของกล่องเปล่า"],
-    ["02", "อ่าน Product Config", "ระบบเติมรุ่น ขนาด และประเภทจากรหัสที่ตั้งค่าไว้"],
+    ["01", "ระบุสินค้ารับเข้า", "สแกน QR, เลือก SKU หรือเลือกฟิล์มสีจากรูปจริง"],
+    ["02", "อ่าน Product Config", "ระบบเติมรุ่น ขนาด ประเภท และรูปสีที่บันทึกไว้"],
     ["03", "สร้างตัวตน", "ใช้ QR เดิม หรือสร้าง Serial ภายในเฉพาะกล่องที่ไม่มี Serial ประจำม้วน"],
     ["04", "จัดเก็บ", "ยืนยัน Lot และตำแหน่งให้ตรงกับของจริง"],
     ["05", "เบิกหรือจ่าย", "เลือกเต็มม้วนหรือตัดใช้พร้อมบันทึกเมตร"],
@@ -1713,6 +2033,7 @@ function WorkflowGuide({ onClose }: { onClose: () => void }) {
         <div className={styles.workflowLanes}>
           <article className={styles.existingLane}><p>LANE A · UNIT QR</p><h3>NEXS Begin / Prime / Pro / Ultimate</h3><div><span>สแกน QR เดิม</span><i>→</i><span>ตรวจรหัสซ้ำ</span><i>→</i><span>ผูก Lot และคลัง</span><i>→</i><span>พร้อมใช้</span></div><small>QR เดิมเป็น Serial ประจำม้วน · ไม่สร้างรหัสใหม่ซ้ำ</small></article>
           <article className={styles.generateLane}><p>LANE B · NO UNIT SERIAL</p><h3>กล่องทั่วไปที่ Barcode ระบุเพียง SKU หรือไม่มีรหัสเลย</h3><div><span>สแกน SKU / เลือกชื่อ</span><i>→</i><span>Generate Serial</span><i>→</i><b>พิมพ์ Label แนะนำ</b></div><small>ถ้าไม่ติด Label ให้เบิกผ่าน SKU + FIFO และต้องแยกกล่องไม่ให้ปะปน</small></article>
+          <article className={styles.colorLane}><p>LANE C · COLOR FILM</p><h3>ฟิล์มสีที่ต้องเทียบจากภาพและรหัสสี</h3><div><span>เลือกรูปสี</span><i>→</i><span>ตรวจชื่อ / รหัสสี</span><i>→</i><span>Generate Serial</span></div><small>เพิ่มสีใหม่ครั้งเดียว จากนั้นใช้รูปเดิมซ้ำตอนรับเข้า เบิกจ่าย และตรวจนับ</small></article>
         </div>
         <div className={styles.workflowStates}><b>สถานะมาตรฐาน</b><span>พร้อมใช้</span><span>จองแล้ว</span><span>เปิดม้วน</span><span>จ่ายออก</span><span>เสียหาย</span></div>
         <footer><div><b>กติกาหลัก</b><span>ทุกงานเริ่มจากการกดของคุณ · ระบบไม่สร้างงานตรวจนับหรือแจ้งเสียขึ้นมาเอง · ถ้ารายการผิดให้ย้อนกลับด้วยประวัติ</span></div><button className={styles.primaryButton} onClick={onClose}>เข้าใจแล้ว เริ่มทำงาน</button></footer>

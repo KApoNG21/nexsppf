@@ -28,6 +28,7 @@ const TABLES_WITH_NUMERIC_ID = new Set([
   "product_series",
   "registration_exceptions",
   "serials",
+  "stock_color_products",
   "support_requests",
   "warranties",
 ]);

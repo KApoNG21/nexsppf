@@ -1242,7 +1242,7 @@
 
 .receiveRouteTabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1296,6 +1296,16 @@
 .receiveRouteTabs .routeActive > span {
   color: white;
   background: var(--stock-red);
+}
+
+.receiveRouteTabs .colorRouteIcon {
+  color: white;
+  background: conic-gradient(from 35deg, #1f2635, #7356a8, #ba355e, #ce8b31, #2d8a78, #1f2635);
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .24);
+}
+
+.receiveRouteTabs .routeActive .colorRouteIcon {
+  background: conic-gradient(from 35deg, #1f2635, #7356a8, #ba355e, #ce8b31, #2d8a78, #1f2635);
 }
 
 .boxMethodTabs,
@@ -5064,6 +5074,467 @@
   font-size: 15px;
 }
 
+.colorLane {
+  grid-column: 1 / -1;
+  border-color: #c8acd7 !important;
+  background:
+    linear-gradient(120deg, rgba(95, 49, 125, .08), rgba(194, 58, 91, .08), rgba(216, 151, 43, .08)),
+    #fbf8fd;
+}
+
+.colorReceiveIntro {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: end;
+  border: 1px solid #d8c9df;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 90% 20%, rgba(180, 73, 111, .12), transparent 34%),
+    #fbf9fc;
+}
+
+.colorReceiveIntro p,
+.colorReceiveIntro h3,
+.colorReceiveIntro span {
+  margin: 0;
+}
+
+.colorReceiveIntro p {
+  color: #7a3f88;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+
+.colorReceiveIntro h3 {
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+.colorReceiveIntro > div:first-child > span {
+  display: block;
+  margin-top: 5px;
+  color: var(--stock-muted);
+  font-size: 12px;
+}
+
+.colorEntryTabs {
+  display: flex;
+  gap: 6px;
+}
+
+.colorEntryTabs button {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #d8c9df;
+  border-radius: 8px;
+  color: #674372;
+  background: white;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.colorEntryTabs button:disabled {
+  opacity: .45;
+}
+
+.colorEntryTabs .colorEntryActive {
+  color: white;
+  border-color: #5d376b;
+  background: #5d376b;
+}
+
+.colorProductGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.colorProductGrid > button {
+  min-width: 0;
+  padding: 9px;
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  border: 1px solid var(--stock-line);
+  border-radius: 12px;
+  color: var(--stock-ink);
+  background: white;
+  text-align: left;
+}
+
+.colorProductGrid > button:hover {
+  border-color: #a98bb5;
+  box-shadow: 0 8px 22px rgba(61, 38, 69, .09);
+}
+
+.colorProductGrid > .colorProductSelected {
+  border-color: #5d376b;
+  box-shadow: inset 0 0 0 1px #5d376b;
+  background: #fcf9fd;
+}
+
+.colorProductGrid > button > span:not(.colorFilmVisual) {
+  margin-top: 10px;
+  color: #8b7391;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+
+.colorProductGrid > button > b {
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.colorProductGrid > button > small {
+  margin-top: 3px;
+  color: var(--stock-muted);
+  font-size: 10px;
+}
+
+.colorProductGrid > button > i {
+  margin-top: 7px;
+  color: #5d376b;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.colorProductGrid .addColorProduct {
+  min-height: 210px;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  text-align: center;
+}
+
+.colorProductGrid .addColorProduct > span {
+  width: 44px;
+  height: 44px;
+  margin: 0 0 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: #5d376b;
+  font-size: 22px;
+}
+
+.selectedColorStrip {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #d8c9df;
+  border-radius: 11px;
+  background: #fbf9fc;
+}
+
+.selectedColorStrip span,
+.selectedColorStrip b,
+.selectedColorStrip small {
+  display: block;
+}
+
+.selectedColorStrip span {
+  color: #7a3f88;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.selectedColorStrip b {
+  font-size: 14px;
+}
+
+.selectedColorStrip small {
+  margin-top: 2px;
+  color: var(--stock-muted);
+  font-size: 11px;
+}
+
+.newColorForm {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(170px, .72fr) 1.7fr;
+  gap: 16px;
+  border: 1px solid #d8c9df;
+  border-radius: 12px;
+  background: #fbf9fc;
+}
+
+.colorPhotoColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.colorPhotoColumn > small {
+  color: var(--stock-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.colorPhotoPreview {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border: 1px solid rgba(0, 0, 0, .12);
+  border-radius: 11px;
+  color: white;
+  background-image: linear-gradient(145deg, rgba(255, 255, 255, .22), rgba(0, 0, 0, .17));
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, .1);
+}
+
+.colorPhotoPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.colorPhotoPreview span,
+.colorPhotoPreview small {
+  padding: 0 8px;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+}
+
+.colorPhotoPreview span {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.colorPhotoPreview small {
+  margin-top: 3px;
+  font-size: 10px;
+}
+
+.colorUploadButton {
+  min-height: 42px;
+  padding: 9px 12px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row !important;
+  gap: 7px !important;
+  border: 1px solid #5d376b;
+  border-radius: 9px;
+  color: #5d376b;
+  background: white;
+  cursor: pointer;
+}
+
+.colorUploadButton input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.colorFields {
+  display: grid;
+  gap: 12px;
+}
+
+.colorPickerRow > div {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.colorPickerRow input[type="color"] {
+  width: 52px;
+  height: 42px;
+  padding: 3px;
+}
+
+.colorPickerRow b {
+  width: 30px;
+  height: 30px;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #cacdd1;
+}
+
+.colorPickerRow code {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.colorPickerRow small {
+  margin-left: auto;
+  color: var(--stock-muted);
+  font-size: 10px;
+}
+
+.colorPhotoHint {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #ead8a5;
+  border-radius: 10px;
+  background: #fff9e8;
+}
+
+.colorPhotoHint > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #84640b;
+  background: #f7e7b5;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.colorPhotoHint b,
+.colorPhotoHint p {
+  margin: 0;
+}
+
+.colorPhotoHint p {
+  margin-top: 2px;
+  color: #746b50;
+  font-size: 11px;
+}
+
+.colorFilmVisual {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 145px;
+  border-radius: 10px;
+  background-image: linear-gradient(145deg, rgba(255, 255, 255, .24), rgba(0, 0, 0, .18));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+
+.colorFilmVisual > img,
+.colorFilmVisual > span {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.colorFilmVisual > span {
+  background-image:
+    radial-gradient(circle at 25% 20%, rgba(255, 255, 255, .38), transparent 32%),
+    linear-gradient(135deg, transparent, rgba(0, 0, 0, .25));
+}
+
+.colorFilmVisual > i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(112deg, transparent 18%, rgba(255, 255, 255, .28) 37%, transparent 55%);
+  transform: translateX(-18%);
+}
+
+.colorFilmVisual > small {
+  position: absolute;
+  z-index: 1;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  overflow: hidden;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: white;
+  background: rgba(15, 16, 19, .7);
+  font-size: 10px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(5px);
+}
+
+.colorFilmVisualCompact {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  min-height: 52px;
+  border-radius: 9px;
+}
+
+.colorReviewVisual {
+  min-height: 190px !important;
+  grid-column: 1 / -1;
+  display: grid !important;
+  grid-template-columns: 190px 1fr !important;
+  grid-template-rows: auto auto auto;
+  gap: 2px 16px;
+  align-content: center;
+}
+
+.colorReviewVisual .colorFilmVisual {
+  grid-row: 1 / 4;
+  min-height: 150px;
+}
+
+.colorReviewVisual > span,
+.colorReviewVisual > b,
+.colorReviewVisual > small {
+  grid-column: 2;
+}
+
+.finalReceive > .colorFilmVisual {
+  max-width: 280px;
+  min-height: 135px;
+  margin: 0 0 18px;
+}
+
+.colorBalanceCard {
+  position: relative;
+  padding-left: 76px !important;
+}
+
+.colorBalanceCard .colorFilmVisualCompact {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+}
+
+.inventoryProductCell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.inventoryProductCell > span {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.issueScanResult > .colorFilmVisual {
+  min-height: 180px;
+  grid-column: 1 / -1;
+}
+
+.unitPreview > .colorFilmVisual {
+  min-height: 175px;
+  margin-bottom: 16px;
+}
+
+.rollCard > .colorFilmVisualCompact {
+  margin: 10px 0;
+}
+
+.drawerHero > .colorFilmVisual {
+  min-height: 210px;
+  margin-bottom: 16px;
+}
+
 .workflowStates {
   margin: 2px 22px 10px;
   padding: 10px 12px;
@@ -5205,6 +5676,10 @@
 @media (max-width: 820px) {
   .workspace {
     padding-bottom: 68px;
+  }
+
+  .formCard footer {
+    bottom: 78px;
   }
 
   .sidebar {
@@ -5368,6 +5843,29 @@
 
   .receiveAside {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .colorReceiveIntro,
+  .newColorForm {
+    grid-template-columns: 1fr;
+  }
+
+  .colorEntryTabs {
+    justify-content: flex-start;
+  }
+
+  .colorProductGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .colorPhotoColumn {
+    display: grid;
+    grid-template-columns: minmax(180px, .8fr) 1fr;
+    align-items: start;
+  }
+
+  .colorPhotoColumn > small {
+    grid-column: 2;
   }
 
   .successCard {
@@ -5628,6 +6126,43 @@
   .receiveAside,
   .rollSummary {
     grid-template-columns: 1fr;
+  }
+
+  .colorProductGrid,
+  .colorPhotoColumn,
+  .colorReviewVisual {
+    grid-template-columns: 1fr !important;
+  }
+
+  .colorPhotoColumn > small,
+  .colorReviewVisual > span,
+  .colorReviewVisual > b,
+  .colorReviewVisual > small {
+    grid-column: 1;
+  }
+
+  .colorReviewVisual .colorFilmVisual {
+    grid-row: auto;
+    min-height: 180px;
+  }
+
+  .colorReceiveIntro {
+    padding: 14px;
+  }
+
+  .colorEntryTabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .colorPickerRow > div {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .colorPickerRow small {
+    width: 100%;
+    margin-left: 0;
   }
 
   .referenceStockPanel > header,
