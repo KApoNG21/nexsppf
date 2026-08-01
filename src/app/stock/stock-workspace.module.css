@@ -2897,6 +2897,129 @@
   background: #fff8f8;
 }
 
+.issueDestinationPanel {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid #d8dce2;
+  border-radius: 13px;
+  background: #f8f9fb;
+}
+
+.issueDestinationPanel > header span {
+  color: var(--stock-red);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.issueDestinationPanel > header h3 {
+  margin: 3px 0 2px;
+  font-size: 20px;
+}
+
+.issueDestinationPanel > header p {
+  margin: 0;
+  color: var(--stock-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.issueDestinationGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.issueDestinationGrid > button {
+  min-height: 72px;
+  padding: 11px;
+  display: grid;
+  grid-template-columns: 42px 1fr 22px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d7dae0;
+  border-radius: 10px;
+  color: var(--stock-ink);
+  background: white;
+  text-align: left;
+}
+
+.issueDestinationGrid > button > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #5d626b;
+  background: #eef0f3;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.issueDestinationGrid > button b,
+.issueDestinationGrid > button small {
+  display: block;
+}
+
+.issueDestinationGrid > button b {
+  font-size: 13px;
+}
+
+.issueDestinationGrid > button small {
+  margin-top: 2px;
+  color: var(--stock-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.issueDestinationGrid > button i {
+  color: var(--stock-green);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 900;
+  text-align: center;
+}
+
+.issueDestinationGrid > .issueDestinationActive {
+  border-color: var(--stock-red);
+  box-shadow: inset 0 0 0 1px var(--stock-red);
+  background: #fff8f8;
+}
+
+.issueDestinationGrid > .issueDestinationActive > span {
+  color: white;
+  background: var(--stock-red);
+}
+
+.issueDestinationFields {
+  padding-top: 13px;
+  display: grid;
+  gap: 11px;
+  border-top: 1px solid #e0e2e6;
+}
+
+.issueDestinationSummary {
+  padding: 11px 13px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid #afd7c8;
+  border-radius: 9px;
+  background: #eff9f5;
+}
+
+.issueDestinationSummary span,
+.issueDestinationSummary small {
+  color: var(--stock-muted);
+  font-size: 11px;
+}
+
+.issueDestinationSummary b {
+  color: #126d50;
+  font-size: 14px;
+}
+
 .unitPreview {
   align-self: start;
   overflow: hidden;
@@ -6251,6 +6374,18 @@
 }
 
 @media (max-width: 540px) {
+  .issueDestinationPanel {
+    padding: 13px;
+  }
+
+  .issueDestinationGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .issueDestinationGrid > button {
+    min-height: 66px;
+  }
+
   .scannerBackdrop {
     padding: 0;
     place-items: end stretch;

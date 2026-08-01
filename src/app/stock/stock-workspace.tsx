@@ -13,6 +13,7 @@ type SerialSource = "existing-qr" | "system" | "opening-balance";
 type ProductFamily = "NEXS" | "PLAIN BOX" | "COLOR FILM";
 type ProductConfigStatus = "confirmed" | "verify";
 type ProductKind = "standard" | "color";
+type IssueDestinationKey = "rama2" | "ratchada" | "cdc" | "dealer" | "vehicle" | "internal" | "other";
 
 type StockUnit = {
   serial: string;
@@ -101,6 +102,21 @@ const OPENING_STOCK_COUNTS = [
 
 const OPENING_BATCH = "OPENING-260724";
 const OPENING_LOCATION = "MAIN / รอกำหนดตำแหน่ง";
+
+const ISSUE_DESTINATION_OPTIONS: Array<{
+  key: IssueDestinationKey;
+  label: string;
+  note: string;
+  icon: string;
+}> = [
+  { key: "rama2", label: "สาขาพระราม 2", note: "ส่งไปใช้งานที่สาขา", icon: "R2" },
+  { key: "ratchada", label: "สาขารัชดา", note: "ส่งไปใช้งานที่สาขา", icon: "RC" },
+  { key: "cdc", label: "สาขา CDC", note: "ส่งไปใช้งานที่สาขา", icon: "CD" },
+  { key: "dealer", label: "ขายให้ Dealer", note: "ระบุชื่อร้านหรือผู้รับ", icon: "D" },
+  { key: "vehicle", label: "ใช้กับรถลูกค้า", note: "ระบุรถ ทะเบียน หรืองาน", icon: "CAR" },
+  { key: "internal", label: "ใช้ภายในบริษัท", note: "ตัวอย่าง ทดสอบ หรือ Marketing", icon: "IN" },
+  { key: "other", label: "ปลายทางอื่น", note: "กรอกรายละเอียดด้วยตนเอง", icon: "+" },
+];
 
 function buildOpeningStock(): StockUnit[] {
   return OPENING_STOCK_COUNTS.flatMap((openingItem) => {
@@ -1575,11 +1591,23 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
   const [issueStep, setIssueStep] = useState<1 | 2 | 3 | 4>(1);
   const [issueType, setIssueType] = useState<"full" | "partial">("full");
   const [metres, setMetres] = useState(5);
-  const [destination, setDestination] = useState("Dealer / Job #2841");
+  const [destination, setDestination] = useState("MAIN / A01 / B02");
+  const [issueDestination, setIssueDestination] = useState<IssueDestinationKey | "">("");
+  const [issueReference, setIssueReference] = useState("");
+  const [issueNote, setIssueNote] = useState("");
   const selected = eligible.find((unit) => unit.serial === serial);
   const selectedConfig = PRODUCT_OPTIONS.find((product) => product.value === selected?.product);
   const selectedColorProduct = selected ? colorProductForUnit(selected, colorProducts) : null;
   const unlabelledProducts = [...new Set(eligible.filter((unit) => unit.labelStatus === "unprinted").map((unit) => unit.product))];
+  const issueDestinationOption = ISSUE_DESTINATION_OPTIONS.find((option) => option.key === issueDestination) ?? null;
+  const issueDestinationSummary = [issueDestinationOption?.label, issueReference.trim()].filter(Boolean).join(" · ");
+  const issueReferenceLabel = issueDestination === "dealer"
+    ? "ชื่อ Dealer / ร้าน / ผู้รับ"
+    : issueDestination === "vehicle"
+      ? "รถที่ใช้ / ทะเบียน / ชื่อลูกค้า"
+      : issueDestination === "other"
+        ? "ชื่อสถานที่หรือผู้รับ"
+        : "ชื่องาน / รถ / ผู้รับ (ถ้ามี)";
 
   useEffect(() => {
     if (action === "issue") {
@@ -1589,7 +1617,9 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
       setIssueStep(1);
       setIssueType("full");
       setMetres(5);
-      setDestination("Dealer / Job #2841");
+      setIssueDestination("");
+      setIssueReference("");
+      setIssueNote("");
       setUnlabelledProduct(unlabelledProducts[0] ?? "");
       return;
     }
@@ -1665,6 +1695,9 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
     setIssueStep(1);
     setIssueType("full");
     setMetres(5);
+    setIssueDestination("");
+    setIssueReference("");
+    setIssueNote("");
   }
 
   function goToIssueReview() {
@@ -1675,6 +1708,18 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
     }
     if (issueType === "partial" && (metres <= 0 || metres > selected.metres)) {
       onToast("จำนวนเมตรที่ใช้ต้องมากกว่า 0 และไม่เกินยอดคงเหลือ");
+      return;
+    }
+    if (!issueDestinationOption) {
+      onToast("กรุณาเลือกว่านำสินค้าไปใช้ที่ไหน");
+      return;
+    }
+    if (["dealer", "vehicle", "other"].includes(issueDestination) && issueReference.trim().length < 2) {
+      onToast(issueDestination === "dealer"
+        ? "กรุณาระบุชื่อ Dealer หรือผู้รับสินค้า"
+        : issueDestination === "vehicle"
+          ? "กรุณาระบุรถ ทะเบียน ชื่อลูกค้า หรือชื่องาน"
+          : "กรุณาระบุสถานที่หรือผู้รับสินค้า");
       return;
     }
     setIssueStep(4);
@@ -1694,8 +1739,14 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
       if (unit.serial !== selected.serial) return unit;
       if (action === "issue") {
         title = issueType === "full" ? `จ่าย ${unit.product} เต็มม้วน` : `ใช้ ${unit.product} ${metres.toFixed(1)} เมตร`;
-        detail = `${unit.serial} · ${destination}`;
-        return { ...unit, status: issueType === "full" ? "issued" : "open", metres: issueType === "full" ? 0 : Math.max(0, unit.metres - metres), updatedAt: "เมื่อสักครู่" };
+        detail = [unit.serial, issueDestinationSummary, issueNote.trim() ? `หมายเหตุ: ${issueNote.trim()}` : ""].filter(Boolean).join(" · ");
+        return {
+          ...unit,
+          status: issueType === "full" ? "issued" : "open",
+          metres: issueType === "full" ? 0 : Math.max(0, unit.metres - metres),
+          location: issueType === "full" ? `จ่ายออก / ${issueDestinationSummary}` : unit.location,
+          updatedAt: "เมื่อสักครู่",
+        };
       }
       if (action === "transfer") {
         title = `ย้าย ${unit.product} ไป ${destination}`;
@@ -1849,15 +1900,62 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
                       <small>คงเหลือหลังทำรายการ: {Math.max(0, selected.metres - metres).toFixed(1)} เมตร</small>
                     </label>
                   )}
-                  <label>
-                    <span>นำไปใช้ที่ไหน / งานใด</span>
-                    <select value={destination} onChange={(event) => setDestination(event.target.value)}>
-                      <option>Dealer / Job #2841</option>
-                      <option>Sample / Marketing</option>
-                      <option>Internal installation</option>
-                    </select>
-                  </label>
-                  <label><span>หมายเหตุ</span><textarea rows={3} placeholder="ใส่รายละเอียดเพิ่มเติม (ถ้ามี)" /></label>
+                  <section className={styles.issueDestinationPanel}>
+                    <header>
+                      <span>ต้องระบุก่อนเบิก</span>
+                      <h3>สินค้านี้นำไปใช้ที่ไหน?</h3>
+                      <p>เลือกสาขาหรือประเภทปลายทาง เพื่อให้ตรวจย้อนหลังได้ว่าแต่ละม้วนถูกนำไปใช้กับงานใด</p>
+                    </header>
+                    <div className={styles.issueDestinationGrid}>
+                      {ISSUE_DESTINATION_OPTIONS.map((option) => (
+                        <button
+                          type="button"
+                          key={option.key}
+                          className={issueDestination === option.key ? styles.issueDestinationActive : ""}
+                          onClick={() => {
+                            setIssueDestination(option.key);
+                            if (option.key !== "dealer" && option.key !== "vehicle" && option.key !== "other") setIssueReference("");
+                          }}
+                        >
+                          <span>{option.icon}</span>
+                          <div><b>{option.label}</b><small>{option.note}</small></div>
+                          <i>{issueDestination === option.key ? "✓" : ""}</i>
+                        </button>
+                      ))}
+                    </div>
+                    {issueDestinationOption && (
+                      <div className={styles.issueDestinationFields}>
+                        <label>
+                          <span>{issueReferenceLabel}{["dealer", "vehicle", "other"].includes(issueDestination) ? " *" : ""}</span>
+                          <input
+                            value={issueReference}
+                            onChange={(event) => setIssueReference(event.target.value)}
+                            placeholder={issueDestination === "dealer"
+                              ? "เช่น Dealer ABC / คุณสมชาย"
+                              : issueDestination === "vehicle"
+                                ? "เช่น Tesla Model 3 · 1กข 1234 · งานคุณเอ"
+                                : issueDestination === "other"
+                                  ? "เช่น ส่งให้ช่างภายนอก / งาน Event"
+                                  : "เช่น รถ Alphard สีดำ / งานติดตั้ง #2841"}
+                          />
+                        </label>
+                        <label>
+                          <span>หมายเหตุการเบิก (ถ้ามี)</span>
+                          <textarea
+                            rows={3}
+                            value={issueNote}
+                            onChange={(event) => setIssueNote(event.target.value)}
+                            placeholder="เช่น ผู้เบิก คุณเอ · นัดติดตั้ง 5 ส.ค. · ส่งพร้อมอุปกรณ์ชุด A"
+                          />
+                        </label>
+                        <div className={styles.issueDestinationSummary}>
+                          <span>ข้อมูลที่จะบันทึกในประวัติ</span>
+                          <b>{issueDestinationSummary || issueDestinationOption.label}</b>
+                          <small>{issueNote.trim() || "ยังไม่มีหมายเหตุเพิ่มเติม"}</small>
+                        </div>
+                      </div>
+                    )}
+                  </section>
                   <footer className={styles.issueFooter}>
                     <button type="button" className={styles.secondaryButton} onClick={() => setIssueStep(2)}>← ย้อนกลับ</button>
                     <button type="button" className={styles.primaryButton} onClick={goToIssueReview}>ถัดไป: ตรวจรายการ →</button>
@@ -1875,7 +1973,8 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
                       <div><dt>ขนาด</dt><dd>{selected.variant}</dd></div>
                       <div><dt>ก่อนจ่าย</dt><dd>{selected.metres.toFixed(1)} m</dd></div>
                       <div><dt>คงเหลือหลังจ่าย</dt><dd>{issueType === "full" ? "0.0 m" : `${Math.max(0, selected.metres - metres).toFixed(1)} m`}</dd></div>
-                      <div><dt>ปลายทาง / งาน</dt><dd>{destination}</dd></div>
+                      <div><dt>นำไปใช้ที่</dt><dd>{issueDestinationSummary}</dd></div>
+                      {issueNote.trim() && <div><dt>หมายเหตุ</dt><dd>{issueNote.trim()}</dd></div>}
                       <div><dt>สถานะหลังยืนยัน</dt><dd>{issueType === "full" ? "จ่ายออก" : "ม้วนเปิด"}</dd></div>
                     </dl>
                   </div>
@@ -1929,7 +2028,12 @@ function RollsView({ units, setUnits, colorProducts, onActivity, onToast }: {
   const openRolls = units.filter((unit) => unit.status === "open");
   const [selected, setSelected] = useState(openRolls[0]?.serial ?? "");
   const [used, setUsed] = useState(1.5);
+  const [usageDestination, setUsageDestination] = useState<IssueDestinationKey | "">("");
+  const [usageReference, setUsageReference] = useState("");
+  const [usageNote, setUsageNote] = useState("");
   const unit = units.find((item) => item.serial === selected);
+  const usageDestinationOption = ISSUE_DESTINATION_OPTIONS.find((option) => option.key === usageDestination) ?? null;
+  const usageDestinationSummary = [usageDestinationOption?.label, usageReference.trim()].filter(Boolean).join(" · ");
 
   function recordUsage(event: FormEvent) {
     event.preventDefault();
@@ -1937,10 +2041,31 @@ function RollsView({ units, setUnits, colorProducts, onActivity, onToast }: {
       onToast("กรุณาตรวจจำนวนเมตรที่ใช้");
       return;
     }
+    if (!usageDestinationOption) {
+      onToast("กรุณาเลือกว่านำฟิล์มไปใช้ที่ไหน");
+      return;
+    }
+    if (["dealer", "vehicle", "other"].includes(usageDestination) && usageReference.trim().length < 2) {
+      onToast("กรุณาระบุชื่อ Dealer รถ งาน หรือสถานที่ให้ครบ");
+      return;
+    }
     const left = unit.metres - used;
-    setUnits((current) => current.map((item) => item.serial === unit.serial ? { ...item, metres: left, status: left === 0 ? "issued" : "open", updatedAt: "เมื่อสักครู่" } : item));
-    onActivity({ type: "เปิดม้วน", title: `ใช้ ${unit.product} ${used.toFixed(1)} เมตร`, detail: `${unit.serial} · คงเหลือ ${left.toFixed(1)} เมตร`, tone: "red" });
+    setUnits((current) => current.map((item) => item.serial === unit.serial ? {
+      ...item,
+      metres: left,
+      status: left === 0 ? "issued" : "open",
+      location: left === 0 ? `ใช้หมด / ${usageDestinationSummary}` : item.location,
+      updatedAt: "เมื่อสักครู่",
+    } : item));
+    onActivity({
+      type: "เปิดม้วน",
+      title: `ใช้ ${unit.product} ${used.toFixed(1)} เมตร`,
+      detail: [unit.serial, usageDestinationSummary, `คงเหลือ ${left.toFixed(1)} เมตร`, usageNote.trim() ? `หมายเหตุ: ${usageNote.trim()}` : ""].filter(Boolean).join(" · "),
+      tone: "red",
+    });
     onToast(`บันทึกแล้ว เหลือ ${left.toFixed(1)} เมตร`);
+    setUsageReference("");
+    setUsageNote("");
   }
 
   return (
@@ -1964,7 +2089,20 @@ function RollsView({ units, setUnits, colorProducts, onActivity, onToast }: {
           <label><span>เลือกม้วน</span><select value={selected} onChange={(event) => setSelected(event.target.value)}>{openRolls.map((roll) => <option value={roll.serial} key={roll.serial}>{roll.serial} · {roll.metres.toFixed(1)} m</option>)}</select></label>
           <label><span>จำนวนที่ใช้ครั้งนี้</span><div className={styles.metreInput}><input type="number" min=".5" step=".5" max={unit?.metres ?? 0} value={used} onChange={(event) => setUsed(Number(event.target.value))} /><b>เมตร</b></div></label>
           <div className={styles.usageMath}><div><span>ก่อนใช้</span><b>{unit?.metres.toFixed(1) ?? "0.0"} m</b></div><i>−</i><div><span>ใช้ครั้งนี้</span><b>{used.toFixed(1)} m</b></div><i>=</i><div className={styles.usageResult}><span>คงเหลือ</span><b>{Math.max(0, (unit?.metres ?? 0) - used).toFixed(1)} m</b></div></div>
-          <label><span>ปลายทาง / งาน</span><select><option>Dealer / Job #2841</option><option>Internal installation</option><option>Sample / Marketing</option></select></label>
+          <label>
+            <span>นำไปใช้ที่ไหน *</span>
+            <select value={usageDestination} onChange={(event) => { setUsageDestination(event.target.value as IssueDestinationKey | ""); setUsageReference(""); }}>
+              <option value="">เลือกสาขาหรือประเภทปลายทาง</option>
+              {ISSUE_DESTINATION_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+            </select>
+          </label>
+          {usageDestinationOption && (
+            <>
+              <label><span>รถ / งาน / Dealer / ผู้รับ</span><input value={usageReference} onChange={(event) => setUsageReference(event.target.value)} placeholder="เช่น BMW X5 · 9กก 9999 · Dealer ABC" /></label>
+              <label><span>หมายเหตุการใช้ (ถ้ามี)</span><textarea rows={3} value={usageNote} onChange={(event) => setUsageNote(event.target.value)} placeholder="รายละเอียดที่ต้องการค้นย้อนหลัง" /></label>
+              <div className={styles.issueDestinationSummary}><span>ข้อมูลที่จะบันทึกในประวัติ</span><b>{usageDestinationSummary || usageDestinationOption.label}</b><small>{usageNote.trim() || "ยังไม่มีหมายเหตุเพิ่มเติม"}</small></div>
+            </>
+          )}
           <button className={styles.primaryButton}>ยืนยันการใช้ {used.toFixed(1)} เมตร →</button>
           <small>ระบบจะบันทึก Movement และปรับเมตรคงเหลือของ Serial นี้โดยอัตโนมัติ</small>
         </form>
