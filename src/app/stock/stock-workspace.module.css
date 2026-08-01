@@ -1212,7 +1212,8 @@
 .movementForm select,
 .movementForm textarea,
 .usageForm input,
-.usageForm select {
+.usageForm select,
+.usageForm textarea {
   width: 100%;
   min-height: 46px;
   padding: 9px 11px;
@@ -1230,7 +1231,8 @@
 .movementForm select:focus,
 .movementForm textarea:focus,
 .usageForm input:focus,
-.usageForm select:focus {
+.usageForm select:focus,
+.usageForm textarea:focus {
   border-color: var(--stock-red);
   box-shadow: 0 0 0 4px rgba(229, 25, 39, .07);
 }
@@ -3018,6 +3020,62 @@
 .issueDestinationSummary b {
   color: #126d50;
   font-size: 14px;
+}
+
+.transactionIdentifyPanel {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid #cdd9e6;
+  border-radius: 12px;
+  background: #f4f8fc;
+}
+
+.transactionIdentifyPanel label > div {
+  display: flex;
+  gap: 7px;
+}
+
+.transactionIdentifyPanel label input {
+  min-width: 0;
+  flex: 1;
+}
+
+.transactionIdentifyPanel label button {
+  padding: 0 15px;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  background: var(--stock-ink);
+  font-weight: 900;
+}
+
+.transactionIdentifyPanel > small {
+  grid-column: 1 / -1;
+  color: var(--stock-muted);
+  font-size: 11px;
+}
+
+.transactionReview {
+  padding: 13px 15px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid #abd6c4;
+  border-radius: 10px;
+  background: #f1faf6;
+}
+
+.transactionReview span,
+.transactionReview small {
+  color: var(--stock-muted);
+  font-size: 11px;
+}
+
+.transactionReview b {
+  color: #126d50;
+  font-size: 15px;
 }
 
 .unitPreview {
@@ -4892,6 +4950,33 @@
   gap: 6px;
 }
 
+.auditPanel .auditFilters {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.auditFilters input,
+.auditFilters select {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--stock-line);
+  border-radius: 8px;
+  color: var(--stock-ink);
+  background: white;
+  font: 600 12px "Noto Sans Thai Variable", Arial, sans-serif;
+}
+
+.auditFilters input {
+  width: min(330px, 42vw);
+}
+
+.auditFilters span {
+  width: 100%;
+  color: var(--stock-muted);
+  font-size: 11px;
+  text-align: right;
+}
+
 .auditPanel article {
   min-height: 61px;
   padding: 10px 18px;
@@ -5901,6 +5986,10 @@
   display: none;
 }
 
+.mobileMoreBackdrop {
+  display: none;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
 }
@@ -6313,6 +6402,131 @@
     color: var(--stock-red);
   }
 
+  .mobileMoreBackdrop {
+    position: fixed;
+    z-index: 55;
+    inset: 0;
+    padding: 16px 12px 78px;
+    display: grid;
+    align-items: end;
+    background: rgba(8, 9, 12, .55);
+    backdrop-filter: blur(3px);
+  }
+
+  .mobileMoreMenu {
+    width: min(100%, 520px);
+    margin: 0 auto;
+    padding: 16px;
+    border-radius: 19px;
+    background: white;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, .3);
+  }
+
+  .mobileMoreMenu > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .mobileMoreMenu header p,
+  .mobileMoreMenu header h2 {
+    margin: 0;
+  }
+
+  .mobileMoreMenu header p {
+    color: var(--stock-red);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .1em;
+  }
+
+  .mobileMoreMenu header h2 {
+    margin-top: 2px;
+    font-size: 22px;
+  }
+
+  .mobileMoreMenu header > button {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 10px;
+    color: var(--stock-muted);
+    background: #f0f1f3;
+    font-size: 22px;
+  }
+
+  .mobileMoreMenu > div {
+    margin-top: 13px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobileMoreMenu > div > button {
+    min-height: 68px;
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: 42px 1fr auto;
+    gap: 11px;
+    align-items: center;
+    border: 1px solid var(--stock-line);
+    border-radius: 11px;
+    color: var(--stock-ink);
+    background: white;
+    text-align: left;
+  }
+
+  .mobileMoreMenu > div > button > span {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    color: white;
+    background: var(--stock-ink);
+    font-weight: 900;
+  }
+
+  .mobileMoreMenu > div b,
+  .mobileMoreMenu > div small {
+    display: block;
+  }
+
+  .mobileMoreMenu > div b {
+    font-size: 14px;
+  }
+
+  .mobileMoreMenu > div small {
+    margin-top: 2px;
+    color: var(--stock-muted);
+    font-size: 11px;
+  }
+
+  .mobileMoreMenu > div i {
+    color: var(--stock-muted);
+    font-style: normal;
+  }
+
+  .mobileMoreMenu > div > .mobileMoreActive {
+    border-color: var(--stock-red);
+    background: #fff8f8;
+  }
+
+  .mobileMoreMenu > div > .mobileMoreActive > span {
+    background: var(--stock-red);
+  }
+
+  .mobileGuideButton {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 10px;
+    border: 0;
+    border-radius: 10px;
+    color: white;
+    background: var(--stock-red);
+    font-weight: 900;
+  }
+
   .toast {
     left: 14px;
     right: 14px;
@@ -6374,6 +6588,28 @@
 }
 
 @media (max-width: 540px) {
+  .transactionIdentifyPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .transactionIdentifyPanel > small {
+    grid-column: 1;
+  }
+
+  .auditPanel > header,
+  .auditPanel .auditFilters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .auditFilters input {
+    width: 100%;
+  }
+
+  .auditFilters span {
+    text-align: left;
+  }
+
   .issueDestinationPanel {
     padding: 13px;
   }

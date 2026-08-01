@@ -316,6 +316,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
   const [globalSearch, setGlobalSearch] = useState("");
   const [selectedUnit, setSelectedUnit] = useState<StockUnit | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const lastSavedPayload = useRef("");
   const visibleNavItems = NAV_ITEMS.filter((item) => allowedViews.includes(item.key));
 
@@ -462,6 +463,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
     }
     setView(next);
     setSelectedUnit(null);
+    setMobileMoreOpen(false);
     if (adminMode) router.push(ADMIN_STOCK_PATHS[next], { scroll: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -472,7 +474,7 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       time: new Intl.DateTimeFormat("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }).format(new Date()),
     };
-    setActivity((current) => [next, ...current].slice(0, 14));
+    setActivity((current) => [next, ...current]);
   }
 
   function resetDemo() {
@@ -613,12 +615,23 @@ export function StockWorkspace({ prototype = false, adminMode = false, persisted
       </div>
 
       <nav className={styles.mobileNav} aria-label="เมนูมือถือ">
-        {visibleNavItems.slice(0, 5).map((item) => (
+        {visibleNavItems.slice(0, 4).map((item) => (
           <button className={view === item.key ? styles.mobileActive : ""} key={item.key} onClick={() => openView(item.key)}>
             <span>{item.icon}</span><b>{item.short}</b>
           </button>
         ))}
+        <button className={visibleNavItems.slice(4).some((item) => item.key === view) || mobileMoreOpen ? styles.mobileActive : ""} onClick={() => setMobileMoreOpen((current) => !current)}><span>•••</span><b>เพิ่มเติม</b></button>
       </nav>
+
+      {mobileMoreOpen && (
+        <div className={styles.mobileMoreBackdrop} onMouseDown={() => setMobileMoreOpen(false)}>
+          <section className={styles.mobileMoreMenu} onMouseDown={(event) => event.stopPropagation()} aria-label="เมนูสต็อกเพิ่มเติม">
+            <header><div><p>MORE TOOLS</p><h2>งานสต็อกเพิ่มเติม</h2></div><button onClick={() => setMobileMoreOpen(false)} aria-label="ปิดเมนูเพิ่มเติม">×</button></header>
+            <div>{visibleNavItems.slice(4).map((item) => <button className={view === item.key ? styles.mobileMoreActive : ""} key={item.key} onClick={() => openView(item.key)}><span>{item.icon}</span><div><b>{item.label}</b><small>{item.key === "rolls" ? "บันทึกเมตรที่ใช้และยอดคงเหลือ" : item.key === "count" ? "สแกนตรวจของจริงตามตำแหน่ง" : "ค้นประวัติและดูยอดคงเหลือ"}</small></div><i>→</i></button>)}</div>
+            <button className={styles.mobileGuideButton} onClick={() => { setMobileMoreOpen(false); setGuideOpen(true); }}>เปิดคู่มือการทำงาน</button>
+          </section>
+        </div>
+      )}
 
       {selectedUnit && (
         <UnitDrawer unit={selectedUnit} colorProducts={colorProducts} onClose={() => setSelectedUnit(null)} onOpen={openView} />
@@ -1595,6 +1608,8 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
   const [issueDestination, setIssueDestination] = useState<IssueDestinationKey | "">("");
   const [issueReference, setIssueReference] = useState("");
   const [issueNote, setIssueNote] = useState("");
+  const [transactionScan, setTransactionScan] = useState("");
+  const [transactionNote, setTransactionNote] = useState("");
   const selected = eligible.find((unit) => unit.serial === serial);
   const selectedConfig = PRODUCT_OPTIONS.find((product) => product.value === selected?.product);
   const selectedColorProduct = selected ? colorProductForUnit(selected, colorProducts) : null;
@@ -1623,10 +1638,31 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
       setUnlabelledProduct(unlabelledProducts[0] ?? "");
       return;
     }
-    const next = units.find((unit) => action === "return" ? ["issued", "in-transit"].includes(unit.status) : !["issued", "damaged"].includes(unit.status));
-    setSerial(next?.serial ?? "");
+    setSerial("");
+    setTransactionScan("");
+    setTransactionNote("");
     setDestination(action === "damage" ? "QUARANTINE / Q01" : "MAIN / A01 / B02");
   }, [action]);
+
+  function scanForTransaction(rawValue = transactionScan) {
+    const normalized = normalizeScannedValue(rawValue).toUpperCase();
+    if (!normalized) {
+      onToast("กรุณาสแกนหรือกรอก Serial ก่อน");
+      return false;
+    }
+    const found = eligible.find((unit) => {
+      const unitSerial = unit.serial.toUpperCase();
+      return normalized === unitSerial || normalized.includes(unitSerial);
+    });
+    if (!found) {
+      onToast("ไม่พบ Serial นี้ในรายการที่ทำงานนี้ได้ กรุณาตรวจสถานะสินค้า");
+      return false;
+    }
+    setSerial(found.serial);
+    setTransactionScan(found.serial);
+    onToast(`พบ ${found.product} · ${found.serial}`);
+    return true;
+  }
 
   function scanForIssue(rawValue = scanValue) {
     const normalized = normalizeScannedValue(rawValue).toUpperCase();
@@ -1733,6 +1769,10 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
       onToast("จำนวนเมตรที่ใช้ต้องไม่เกินคงเหลือ");
       return;
     }
+    if (action === "damage" && transactionNote.trim().length < 3) {
+      onToast("กรุณาระบุลักษณะความเสียหายก่อนบันทึก");
+      return;
+    }
     let title = "";
     let detail = "";
     setUnits((current) => current.map((unit) => {
@@ -1750,16 +1790,16 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
       }
       if (action === "transfer") {
         title = `ย้าย ${unit.product} ไป ${destination}`;
-        detail = `${unit.serial} · ย้ายตำแหน่งเรียบร้อย`;
+        detail = [unit.serial, "ย้ายตำแหน่งเรียบร้อย", transactionNote.trim() ? `หมายเหตุ: ${transactionNote.trim()}` : ""].filter(Boolean).join(" · ");
         return { ...unit, status: unit.status === "in-transit" ? "available" : unit.status, location: destination, updatedAt: "เมื่อสักครู่" };
       }
       if (action === "damage") {
         title = `แจ้ง ${unit.product} เสียหาย`;
-        detail = `${unit.serial} · พบจากการตรวจของจริงและย้ายไป ${destination}`;
+        detail = `${unit.serial} · ${transactionNote.trim()} · ย้ายไป ${destination}`;
         return { ...unit, status: "damaged", location: destination, updatedAt: "เมื่อสักครู่" };
       }
       title = `คืน ${unit.product} เข้าคลัง`;
-      detail = `${unit.serial} · ${destination}`;
+      detail = [unit.serial, destination, transactionNote.trim() ? `หมายเหตุ: ${transactionNote.trim()}` : ""].filter(Boolean).join(" · ");
       return { ...unit, status: "available", location: destination, updatedAt: "เมื่อสักครู่" };
     }));
     onActivity({
@@ -1770,6 +1810,11 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
     });
     onToast(action === "issue" ? "ยืนยันเบิกจ่ายและอัปเดตสต็อกแล้ว" : "บันทึกรายการและอัปเดตสต็อกแล้ว");
     if (action === "issue") resetIssue();
+    else {
+      setSerial("");
+      setTransactionScan("");
+      setTransactionNote("");
+    }
   }
 
   return (
@@ -1778,7 +1823,7 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
         open={issueScannerOpen}
         mode="qr"
         onClose={() => setIssueScannerOpen(false)}
-        onDetected={(value) => scanForIssue(value)}
+        onDetected={(value) => action === "issue" ? scanForIssue(value) : scanForTransaction(value)}
       />
       <PageHeading
         eyebrow={action === "issue" ? "SCAN + ISSUE" : "TRANSACTIONS"}
@@ -1989,10 +2034,16 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
           ) : (
             <>
               <div className={styles.movementStep}><span>1</span><div><p>เลือกหน่วยสินค้า</p><h2>{action === "return" ? "สินค้าที่รับคืน" : action === "damage" ? "พบความเสียหายที่สินค้าใด?" : "สินค้าที่ต้องการย้าย"}</h2></div></div>
-              <label><span>Serial / Unit</span><select value={serial} onChange={(event) => setSerial(event.target.value)}>{eligible.map((unit) => <option key={unit.serial} value={unit.serial}>{unit.serial} · {unit.product} · {unit.metres.toFixed(1)} m</option>)}</select></label>
+              <div className={styles.transactionIdentifyPanel}>
+                <label><span>สแกนหรือกรอก Serial</span><div><input value={transactionScan} onChange={(event) => setTransactionScan(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); scanForTransaction(); } }} placeholder="สแกน Serial ของม้วนที่อยู่ตรงหน้า" /><button type="button" onClick={() => scanForTransaction()}>ค้นหา</button></div></label>
+                <button type="button" className={styles.secondaryButton} onClick={() => setIssueScannerOpen(true)}>▣ เปิดกล้องสแกน</button>
+                <small>หรือเลือกจากรายการด้านล่าง เมื่อฉลากสแกนไม่ได้</small>
+              </div>
+              <label><span>เลือกจากรายการ</span><select value={serial} onChange={(event) => { setSerial(event.target.value); setTransactionScan(event.target.value); }}><option value="">เลือก Serial ที่ต้องการทำรายการ</option>{eligible.map((unit) => <option key={unit.serial} value={unit.serial}>{unit.serial} · {unit.product} · {unit.metres.toFixed(1)} m</option>)}</select></label>
               <label><span>{action === "transfer" ? "คลังหรือจุดจัดเก็บปลายทาง" : action === "damage" ? "ย้ายไปจุดกักแยก" : "ตำแหน่งรับคืน"}</span><select value={destination} onChange={(event) => setDestination(event.target.value)}>{action === "damage" ? <option>QUARANTINE / Q01</option> : <><option>MAIN / A01 / B02</option><option>MAIN / C02 / A01</option><option>SHOWROOM / S01</option><option>QUARANTINE / Q01</option></>}</select></label>
-              <label><span>{action === "damage" ? "ลักษณะความเสียหาย" : "หมายเหตุ"}</span><textarea rows={3} placeholder={action === "damage" ? "เช่น กล่องบุบ ฟิล์มมีรอย หรือเปียกน้ำ" : "ใส่เหตุผลหรือรายละเอียดเพิ่มเติม (ถ้ามี)"} /></label>
-              <button className={styles.primaryButton} disabled={!selected}>บันทึกและยืนยันรายการ →</button>
+              <label><span>{action === "damage" ? "ลักษณะความเสียหาย *" : "หมายเหตุ"}</span><textarea rows={3} value={transactionNote} onChange={(event) => setTransactionNote(event.target.value)} placeholder={action === "damage" ? "เช่น กล่องบุบ ฟิล์มมีรอย หรือเปียกน้ำ" : "ใส่เหตุผล ผู้ส่งคืน หรือรายละเอียดเพิ่มเติม (ถ้ามี)"} /></label>
+              {selected && <div className={styles.transactionReview}><span>ตรวจอีกครั้งก่อนบันทึก</span><b>{selected.product}</b><small>{selected.serial} · {action === "damage" ? "ย้ายเข้าจุดกักแยก" : action === "transfer" ? `ย้ายไป ${destination}` : `รับคืนที่ ${destination}`}</small></div>}
+              <button className={styles.primaryButton} disabled={!selected || (action === "damage" && transactionNote.trim().length < 3)}>{action === "damage" ? "ยืนยันแจ้งเสียและย้ายเข้าจุดกักแยก" : action === "transfer" ? "ยืนยันย้ายตำแหน่งสินค้า" : "ยืนยันรับคืนเข้าคลัง"} →</button>
             </>
           )}
         </form>
@@ -2064,8 +2115,12 @@ function RollsView({ units, setUnits, colorProducts, onActivity, onToast }: {
       tone: "red",
     });
     onToast(`บันทึกแล้ว เหลือ ${left.toFixed(1)} เมตร`);
+    const nextOpenRoll = openRolls.find((item) => item.serial !== unit.serial);
+    if (left === 0) setSelected(nextOpenRoll?.serial ?? "");
+    setUsageDestination("");
     setUsageReference("");
     setUsageNote("");
+    setUsed(left > 0 ? Math.min(1.5, left) : Math.min(1.5, nextOpenRoll?.metres ?? 1.5));
   }
 
   return (
@@ -2084,7 +2139,7 @@ function RollsView({ units, setUnits, colorProducts, onActivity, onToast }: {
             return <button className={cx(styles.rollCard, selected === roll.serial && styles.rollSelected)} onClick={() => setSelected(roll.serial)} key={roll.serial}><header><span className={percent <= 20 ? styles.red : styles.green}>OPEN</span><small>{roll.updatedAt}</small></header>{roll.productKind === "color" && <ColorFilmVisual product={colorProduct} unit={roll} compact />}<h3>{roll.product}</h3><p>{roll.productKind === "color" ? colorProductLabel(roll) : roll.serial}</p><div className={styles.rollVisual}><span style={{ ["--fill" as string]: `${percent}%` }} /><div><b>{roll.metres.toFixed(1)}</b><small>/ {roll.initialMetres.toFixed(0)} m</small></div></div><footer><span>{roll.location}</span><b>{percent <= 20 ? "ใกล้หมด" : "พร้อมใช้งาน"}</b></footer></button>;
           })}
         </div>
-        <form className={styles.usageForm} onSubmit={recordUsage}>
+        {openRolls.length ? <form className={styles.usageForm} onSubmit={recordUsage}>
           <p>RECORD USAGE</p><h2>บันทึกการใช้ฟิล์ม</h2>
           <label><span>เลือกม้วน</span><select value={selected} onChange={(event) => setSelected(event.target.value)}>{openRolls.map((roll) => <option value={roll.serial} key={roll.serial}>{roll.serial} · {roll.metres.toFixed(1)} m</option>)}</select></label>
           <label><span>จำนวนที่ใช้ครั้งนี้</span><div className={styles.metreInput}><input type="number" min=".5" step=".5" max={unit?.metres ?? 0} value={used} onChange={(event) => setUsed(Number(event.target.value))} /><b>เมตร</b></div></label>
@@ -2103,9 +2158,9 @@ function RollsView({ units, setUnits, colorProducts, onActivity, onToast }: {
               <div className={styles.issueDestinationSummary}><span>ข้อมูลที่จะบันทึกในประวัติ</span><b>{usageDestinationSummary || usageDestinationOption.label}</b><small>{usageNote.trim() || "ยังไม่มีหมายเหตุเพิ่มเติม"}</small></div>
             </>
           )}
-          <button className={styles.primaryButton}>ยืนยันการใช้ {used.toFixed(1)} เมตร →</button>
+          <button className={styles.primaryButton} disabled={!unit || used <= 0 || used > (unit?.metres ?? 0)}>ยืนยันการใช้ {used.toFixed(1)} เมตร →</button>
           <small>ระบบจะบันทึก Movement และปรับเมตรคงเหลือของ Serial นี้โดยอัตโนมัติ</small>
-        </form>
+        </form> : <aside className={styles.usageForm}><p>RECORD USAGE</p><h2>ยังไม่มีม้วนเปิด</h2><div className={styles.emptyState}><h3>เริ่มจากหน้าเบิก / จ่ายออก</h3><p>เลือก “ตัดใช้บางส่วน” เพื่อเปิดม้วนและบันทึกเมตรคงเหลือก่อน</p></div></aside>}
       </section>
     </>
   );
@@ -2121,6 +2176,7 @@ function CountView({ units, onToast, onActivity }: { units: StockUnit[]; onToast
   const expected = units.filter((unit) => started && unit.location === countLocation && !["issued", "damaged"].includes(unit.status));
   const [actual, setActual] = useState<Record<string, boolean>>({});
   const [confirmed, setConfirmed] = useState(false);
+  const [countScan, setCountScan] = useState("");
   const found = expected.filter((unit) => actual[unit.serial]).length;
   const openingTotal = OPENING_STOCK_COUNTS.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -2128,7 +2184,32 @@ function CountView({ units, onToast, onActivity }: { units: StockUnit[]; onToast
     const unitsInLocation = units.filter((unit) => unit.location === countLocation && !["issued", "damaged"].includes(unit.status));
     setActual(Object.fromEntries(unitsInLocation.map((unit) => [unit.serial, false])));
     setConfirmed(false);
+    setCountScan("");
     setStarted(true);
+  }
+
+  function confirmScannedUnit() {
+    const normalized = normalizeScannedValue(countScan).toUpperCase();
+    if (!normalized) {
+      onToast("กรุณาสแกนหรือกรอก Serial ก่อน");
+      return;
+    }
+    const matched = expected.find((unit) => {
+      const unitSerial = unit.serial.toUpperCase();
+      return normalized === unitSerial || normalized.includes(unitSerial);
+    });
+    if (!matched) {
+      onToast(`ไม่พบ Serial นี้ในตำแหน่ง ${countLocation}`);
+      return;
+    }
+    if (actual[matched.serial]) {
+      onToast(`${matched.serial} ตรวจพบแล้ว ไม่ได้นับซ้ำ`);
+      setCountScan("");
+      return;
+    }
+    setActual((current) => ({ ...current, [matched.serial]: true }));
+    setCountScan("");
+    onToast(`พบ ${matched.product} · ${matched.serial}`);
   }
 
   function confirmCount() {
@@ -2188,7 +2269,7 @@ function CountView({ units, onToast, onActivity }: { units: StockUnit[]; onToast
       <section className={styles.countProgress}><div><span>ความคืบหน้า</span><b>{found} / {expected.length} หน่วย</b></div><div><i style={{ width: `${expected.length ? (found / expected.length) * 100 : 0}%` }} /></div><p>แตะรายการเมื่อพบของจริง หรือใช้ Scanner เพื่อยืนยัน Serial ต่อเนื่อง</p></section>
       <section className={styles.countLayout}>
         <div className={styles.countPanel}>
-          <header><div className={styles.tableSearch}><span>⌁</span><input placeholder="สแกน Serial เพื่อยืนยัน" /></div><button onClick={() => setActual(Object.fromEntries(expected.map((unit) => [unit.serial, true])))}>พบทั้งหมด</button></header>
+          <header><div className={styles.tableSearch}><span>⌁</span><input value={countScan} onChange={(event) => setCountScan(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); confirmScannedUnit(); } }} placeholder="สแกน Serial แล้วกด Enter" /></div><button type="button" onClick={confirmScannedUnit}>ยืนยัน Serial</button><button type="button" onClick={() => setActual(Object.fromEntries(expected.map((unit) => [unit.serial, true])))}>ตรวจของจริงครบแล้ว</button></header>
           {expected.map((unit, index) => <label className={styles.countRow} key={unit.serial}><input type="checkbox" checked={Boolean(actual[unit.serial])} onChange={(event) => setActual((current) => ({ ...current, [unit.serial]: event.target.checked }))} /><span>{actual[unit.serial] ? "✓" : index + 1}</span><div><b>{unit.serial}</b><small>{unit.product} · {unit.lot}</small></div><p>{unit.location}</p><i>{actual[unit.serial] ? "พบแล้ว" : "ยังไม่พบ"}</i></label>)}
           {!expected.length && <div className={styles.emptyState}><h3>ไม่มีรายการในจุดจัดเก็บนี้</h3></div>}
         </div>
@@ -2203,6 +2284,8 @@ function CountView({ units, onToast, onActivity }: { units: StockUnit[]; onToast
 }
 
 function ReportsView({ activity, units }: { activity: Activity[]; units: StockUnit[] }) {
+  const [activitySearch, setActivitySearch] = useState("");
+  const [activityType, setActivityType] = useState("all");
   const needsVerification = PRODUCT_OPTIONS.filter((product) => product.configStatus === "verify");
   const activeUnits = units.filter((unit) => !["issued", "damaged"].includes(unit.status));
   const pendingQr = activeUnits.filter((unit) => unit.source === "opening-balance").length;
@@ -2227,6 +2310,13 @@ function ReportsView({ activity, units }: { activity: Activity[]; units: StockUn
     { label: "คืน / ย้าย", count: activity.filter((item) => ["คืนคลัง", "ย้ายสินค้า"].includes(item.type)).length, tone: "blue" },
     { label: "ตรวจ / ตั้งต้น", count: activity.filter((item) => ["ตรวจนับ", "แจ้งเสีย", "ผูก QR", "ตั้งต้น"].includes(item.type)).length, tone: "gold" },
   ];
+  const activityTypes = Array.from(new Set(activity.map((item) => item.type)));
+  const filteredActivity = activity.filter((item) => {
+    const keyword = activitySearch.trim().toLowerCase();
+    const matchesType = activityType === "all" || item.type === activityType;
+    const matchesSearch = !keyword || [item.type, item.title, item.detail, item.time].some((value) => value.toLowerCase().includes(keyword));
+    return matchesType && matchesSearch;
+  });
   return (
     <>
       <PageHeading
@@ -2294,8 +2384,9 @@ function ReportsView({ activity, units }: { activity: Activity[]; units: StockUn
         </ul>
       </section>
       <section className={styles.auditPanel}>
-        <header><div><p>AUDIT TRAIL</p><h2>กิจกรรมล่าสุด</h2></div><div><span>เรียงล่าสุดก่อน</span></div></header>
-        <div>{activity.map((item) => <article key={item.id}><span className={styles[item.tone]}>{item.type.slice(0, 1)}</span><time>{item.time}</time><div><b>{item.title}</b><p>{item.detail}</p></div><small>ผู้ใช้งานปัจจุบัน</small><i>บันทึกแล้ว</i></article>)}</div>
+        <header><div><p>AUDIT TRAIL</p><h2>ประวัติการทำรายการทั้งหมด</h2></div><div className={styles.auditFilters}><input value={activitySearch} onChange={(event) => setActivitySearch(event.target.value)} placeholder="ค้นหา Serial, สาขา, รถ, Dealer หรือหมายเหตุ" /><select value={activityType} onChange={(event) => setActivityType(event.target.value)}><option value="all">ทุกประเภท</option>{activityTypes.map((type) => <option key={type}>{type}</option>)}</select><span>{filteredActivity.length} รายการ · ล่าสุดก่อน</span></div></header>
+        <div>{filteredActivity.map((item) => <article key={item.id}><span className={styles[item.tone]}>{item.type.slice(0, 1)}</span><time>{item.time}</time><div><b>{item.title}</b><p>{item.detail}</p></div><small>ผู้ใช้งานปัจจุบัน</small><i>บันทึกแล้ว</i></article>)}</div>
+        {!filteredActivity.length && <div className={styles.emptyState}><h3>ไม่พบประวัติที่ค้นหา</h3><p>ลองค้นด้วย Serial ชื่อสาขา ทะเบียนรถ หรือชื่อ Dealer</p></div>}
       </section>
     </>
   );
@@ -2313,7 +2404,7 @@ function UnitDrawer({ unit, colorProducts, onClose, onOpen }: { unit: StockUnit;
         {unit.source === "opening-balance" && <div className={styles.drawerNotice}><b>รอผูก QR จริงจากสินค้า</b><p>หน่วยนี้อยู่ในยอดตั้งต้นแล้ว เมื่อสแกน QR จริงเพื่อเบิกจ่าย ระบบจะใช้ QR นั้นแทนรหัสชั่วคราวโดยไม่เพิ่มยอดซ้ำ</p></div>}
         {unit.labelStatus === "unprinted" && <div className={styles.drawerNotice}><b>ยังไม่ได้พิมพ์ Label</b><p>เบิกได้ผ่าน SKU + FIFO แต่ระบุกล่องเฉพาะใบด้วยการสแกนไม่ได้ ควรพิมพ์ Label ก่อนนำไปปะปนกับ Lot อื่น</p><button disabled>ยังไม่เชื่อมเครื่องพิมพ์ Label</button></div>}
         <div className={styles.drawerTimeline}><p>ประวัติล่าสุด</p><article><span /><div><b>สถานะปัจจุบัน · {STATUS_LABELS[unit.status]}</b><small>{unit.updatedAt} · ผู้ใช้งานปัจจุบัน</small></div></article><article><span /><div><b>รับสินค้าเข้าคลัง</b><small>{unit.lot} · MAIN WAREHOUSE</small></div></article></div>
-        <footer><button className={styles.secondaryButton} onClick={() => { onClose(); onOpen("movement"); }}>ทำรายการ</button><button className={styles.primaryButton} onClick={() => { onClose(); onOpen("rolls"); }}>บันทึกการใช้ →</button></footer>
+        <footer><button className={unit.status === "open" ? styles.secondaryButton : styles.primaryButton} onClick={() => { onClose(); onOpen("movement"); }}>{unit.status === "issued" ? "ดูรายการเบิก / คืน" : "ทำรายการกับสินค้านี้"}</button>{unit.status === "open" && <button className={styles.primaryButton} onClick={() => { onClose(); onOpen("rolls"); }}>บันทึกการใช้ม้วนนี้ →</button>}</footer>
       </aside>
     </div>
   );
