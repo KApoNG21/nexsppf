@@ -197,6 +197,22 @@ function findQrProduct(rawValue: string) {
   return PRODUCT_OPTIONS.find((item) => item.qr && item.codes.some((code) => tokens.includes(code)));
 }
 
+function normalizeScannedValue(rawValue: string) {
+  const value = rawValue.trim();
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    for (const key of ["serial", "code", "qr"]) {
+      const queryValue = url.searchParams.get(key);
+      if (queryValue) return queryValue.trim();
+    }
+    const pathValue = url.pathname.split("/").filter(Boolean).at(-1);
+    return pathValue ? decodeURIComponent(pathValue).trim() : value;
+  } catch {
+    return value;
+  }
+}
+
 function exportStockCsv(units: StockUnit[]) {
   const escapeCsv = (value: string | number) => `"${String(value).replaceAll("\"", "\"\"")}"`;
   const rows = [
@@ -706,6 +722,156 @@ function TaskRow({ priority, tone, title, detail, meta, action, onClick }: { pri
   return <article className={styles.taskRow}><span className={cx(styles.taskPriority, styles[tone])}>{priority}</span><div><b>{title}</b><p>{detail}</p></div><small>{meta}</small><button onClick={onClick}>{action} →</button></article>;
 }
 
+type CameraScannerMode = "qr" | "barcode";
+type CameraScannerStatus = "requesting" | "active" | "blocked" | "error" | "photo";
+
+function CameraScanner({ open, mode, onDetected, onClose }: {
+  open: boolean;
+  mode: CameraScannerMode;
+  onDetected: (value: string) => boolean | void;
+  onClose: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const onDetectedRef = useRef(onDetected);
+  const onCloseRef = useRef(onClose);
+  const foundRef = useRef(false);
+  const [status, setStatus] = useState<CameraScannerStatus>("requesting");
+  const [message, setMessage] = useState("กำลังขออนุญาตใช้กล้องหลัง…");
+  const label = mode === "qr" ? "QR ประจำม้วน" : "Barcode รุ่นสินค้า";
+
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+    onCloseRef.current = onClose;
+  }, [onClose, onDetected]);
+
+  useEffect(() => {
+    if (!open) return;
+    foundRef.current = false;
+    setStatus("requesting");
+    setMessage("กำลังขออนุญาตใช้กล้องหลัง…");
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    let cancelled = false;
+    let controls: { stop: () => void } | null = null;
+
+    async function startCamera() {
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        setStatus("blocked");
+        setMessage("เบราว์เซอร์นี้เปิดกล้องสดไม่ได้ กรุณาใช้ปุ่ม “ถ่ายรูปเพื่อสแกน” ด้านล่าง");
+        return;
+      }
+      try {
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const reader = new BrowserMultiFormatReader();
+        if (!videoRef.current || cancelled) return;
+        controls = await reader.decodeFromConstraints(
+          { audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+          videoRef.current,
+          (result) => {
+            if (!result || foundRef.current) return;
+            const scanned = normalizeScannedValue(result.getText());
+            if (!scanned) return;
+            const accepted = onDetectedRef.current(scanned);
+            if (accepted === false) {
+              setMessage("อ่านรหัสได้ แต่ยังไม่ตรงกับสินค้าที่เลือก กรุณาจ่อรหัสอื่น");
+              return;
+            }
+            foundRef.current = true;
+            navigator.vibrate?.(80);
+            controls?.stop();
+            onCloseRef.current();
+          },
+        );
+        if (!cancelled) {
+          setStatus("active");
+          setMessage(`จ่อ ${label} ให้อยู่ในกรอบ ระบบจะอ่านให้อัตโนมัติ`);
+        } else {
+          controls.stop();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const name = error instanceof DOMException ? error.name : "";
+        setStatus(name === "NotAllowedError" || name === "SecurityError" ? "blocked" : "error");
+        setMessage(
+          name === "NotAllowedError" || name === "SecurityError"
+            ? "ยังไม่ได้อนุญาตให้ใช้กล้อง กรุณาอนุญาต Camera หรือใช้ปุ่มถ่ายรูปด้านล่าง"
+            : name === "NotFoundError"
+              ? "ไม่พบกล้องบนอุปกรณ์นี้ กรุณาถ่ายรูปหรือกรอกรหัสแทน"
+              : name === "NotReadableError"
+                ? "กล้องกำลังถูกแอปอื่นใช้งาน กรุณาปิดแอปกล้องแล้วลองใหม่"
+                : "เปิดกล้องไม่สำเร็จ กรุณาใช้การถ่ายรูปหรือกรอกรหัสแทน",
+        );
+      }
+    }
+
+    void startCamera();
+    return () => {
+      cancelled = true;
+      controls?.stop();
+      if (videoRef.current?.srcObject instanceof MediaStream) {
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      }
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [label, mode, open]);
+
+  async function scanPhoto(event: React.ChangeEvent<HTMLInputElement>) {
+    const photo = event.target.files?.[0];
+    event.target.value = "";
+    if (!photo) return;
+    setStatus("photo");
+    setMessage("กำลังอ่านรหัสจากรูป…");
+    const photoUrl = URL.createObjectURL(photo);
+    try {
+      const { BrowserMultiFormatReader } = await import("@zxing/browser");
+      const result = await new BrowserMultiFormatReader().decodeFromImageUrl(photoUrl);
+      const scanned = normalizeScannedValue(result.getText());
+      const accepted = scanned ? onDetectedRef.current(scanned) : false;
+      if (accepted === false) {
+        setStatus("error");
+        setMessage("รูปนี้ยังอ่านรหัสไม่ได้ กรุณาถ่ายให้รหัสชัดและเต็มกรอบแล้วลองอีกครั้ง");
+        return;
+      }
+      navigator.vibrate?.(80);
+      onCloseRef.current();
+    } catch {
+      setStatus("error");
+      setMessage("อ่านรหัสจากรูปไม่สำเร็จ กรุณาถ่ายใกล้ขึ้นและอย่าให้แสงสะท้อน");
+    } finally {
+      URL.revokeObjectURL(photoUrl);
+    }
+  }
+
+  if (!open) return null;
+  return (
+    <div className={styles.scannerBackdrop} role="dialog" aria-modal="true" aria-label={`สแกน ${label}`}>
+      <section className={styles.scannerModal}>
+        <header>
+          <div><span>CAMERA SCANNER</span><h2>สแกน {label}</h2></div>
+          <button type="button" onClick={onClose} aria-label="ปิดกล้อง">×</button>
+        </header>
+        <div className={cx(styles.scannerViewport, status !== "active" && styles.scannerViewportWaiting)}>
+          <video ref={videoRef} muted playsInline />
+          <div className={styles.scannerFrame}><i /><i /><i /><i /></div>
+          {status !== "active" && <div className={styles.scannerPlaceholder}><span>▣</span><b>{status === "requesting" ? "กำลังเปิดกล้อง…" : "กล้องยังไม่พร้อม"}</b></div>}
+        </div>
+        <div className={cx(styles.scannerMessage, (status === "blocked" || status === "error") && styles.scannerMessageError)}>
+          <span>{status === "active" ? "●" : status === "requesting" || status === "photo" ? "…" : "!"}</span>
+          <p>{message}</p>
+        </div>
+        <div className={styles.scannerActions}>
+          <label>
+            <input type="file" accept="image/*" capture="environment" onChange={scanPhoto} />
+            <span>ถ่ายรูปเพื่อสแกน</span>
+          </label>
+          <button type="button" onClick={onClose}>กรอกรหัสเอง</button>
+        </div>
+        <small>หากเปิดจาก LINE แล้วกล้องไม่ขึ้น ให้กดเมนู ••• เลือก “เปิดใน Safari/Chrome” หรือใช้ปุ่มถ่ายรูปด้านบน</small>
+      </section>
+    </div>
+  );
+}
+
 function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActivity, onToast, onOpenInventory }: {
   units: StockUnit[];
   setUnits: React.Dispatch<React.SetStateAction<StockUnit[]>>;
@@ -726,6 +892,7 @@ function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActiv
   const [skuCode, setSkuCode] = useState("");
   const [skuDecoded, setSkuDecoded] = useState(false);
   const [decoded, setDecoded] = useState(false);
+  const [scannerTarget, setScannerTarget] = useState<CameraScannerMode | null>(null);
   const [printLabel, setPrintLabel] = useState(false);
   const [prepared, setPrepared] = useState<StockUnit[]>([]);
   const [created, setCreated] = useState<StockUnit[]>([]);
@@ -797,7 +964,7 @@ function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActiv
   }
 
   function decodeQr(rawValue = qrCode) {
-    const serial = rawValue.trim().toUpperCase();
+    const serial = normalizeScannedValue(rawValue).toUpperCase();
     if (!serial) {
       onToast("กรุณาสแกน QR บนสินค้า");
       return false;
@@ -826,7 +993,7 @@ function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActiv
   }
 
   function decodeSkuBarcode(rawValue = skuCode) {
-    const normalized = rawValue.trim().toUpperCase();
+    const normalized = normalizeScannedValue(rawValue).toUpperCase();
     if (!normalized) {
       onToast("กรุณาสแกน Barcode ที่ฉลากข้างกล่อง");
       return false;
@@ -1003,6 +1170,12 @@ function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActiv
 
   return (
     <>
+      <CameraScanner
+        open={scannerTarget !== null}
+        mode={scannerTarget ?? "qr"}
+        onClose={() => setScannerTarget(null)}
+        onDetected={(value) => scannerTarget === "barcode" ? decodeSkuBarcode(value) : decodeQr(value)}
+      />
       <PageHeading eyebrow="SCAN + SERIAL CENTER" title="รับสินค้าเข้า เริ่มจากการระบุสินค้า" copy="รองรับ QR ประจำม้วน, กล่องไม่มี Serial และฟิล์มสีที่ต้องดูรูปจริง โดยระบบจะสร้าง Serial เฉพาะสินค้าที่ไม่มี Serial เดิม" />
       <div className={styles.stepRail} aria-label={`ขั้นตอนที่ ${step} จาก 4`}>
         {stepLabels.map((label, index) => {
@@ -1037,8 +1210,8 @@ function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActiv
                         <span>QR / Serial</span>
                         <div><input autoFocus placeholder="รอรับข้อมูลจาก Scanner…" value={qrCode} onChange={(event) => { setQrCode(event.target.value); setDecoded(false); setPrepared([]); }} onKeyDown={(event) => { if (event.key === "Enter") decodeQr(); }} /><button type="button" onClick={() => decodeQr()}>อ่าน QR</button></div>
                       </label>
-                      <button type="button" className={styles.scanLaunchButton} onClick={() => decodeQr(`B-2607-${String(units.length + 301).padStart(6, "0")}`)}>▣ เปิด Scanner (ทดลอง)</button>
-                      <small>ตัวทดลองจะใช้รหัส B เพื่อแสดง Config: NEXS Begin · 1.50 × 15 m · ฟิล์มใส</small>
+                      <button type="button" className={styles.scanLaunchButton} onClick={() => setScannerTarget("qr")}>▣ เปิดกล้องสแกน QR</button>
+                      <small>ครั้งแรกมือถือจะถามสิทธิ์ใช้กล้อง ให้กด “อนุญาต” แล้วจ่อ QR ให้อยู่ในกรอบ</small>
                     </section>
                     {decoded && (
                       <div className={styles.decodedProduct}>
@@ -1145,7 +1318,7 @@ function ReceiveView({ units, setUnits, colorProducts, setColorProducts, onActiv
                             <span>Barcode / SKU Code</span>
                             <div><input autoFocus placeholder="รอรับข้อมูลจาก Scanner…" value={skuCode} onChange={(event) => { setSkuCode(event.target.value); setSkuDecoded(false); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); decodeSkuBarcode(); } }} /><button type="button" onClick={() => decodeSkuBarcode()}>อ่าน Barcode</button></div>
                           </label>
-                          <button type="button" className={styles.scanLaunchButton} onClick={() => decodeSkuBarcode("TPU-SMHYD")}>▣ เปิด Scanner (ทดลอง)</button>
+                          <button type="button" className={styles.scanLaunchButton} onClick={() => setScannerTarget("barcode")}>▣ เปิดกล้องสแกน Barcode</button>
                           <small>ค่าตัวอย่างใช้รหัสภายใน TPU-SMHYD · Barcode ตัวเลขจริงต้องตั้งค่าเพิ่มจากฉลากสินค้า</small>
                         </section>
                         {skuDecoded && (
@@ -1397,6 +1570,7 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
   const [serial, setSerial] = useState("");
   const [scanValue, setScanValue] = useState("");
   const [issueEntry, setIssueEntry] = useState<"scan" | "unlabelled">("scan");
+  const [issueScannerOpen, setIssueScannerOpen] = useState(false);
   const [unlabelledProduct, setUnlabelledProduct] = useState("TPU SATIN MATTE (HYDROPHILIC)");
   const [issueStep, setIssueStep] = useState<1 | 2 | 3 | 4>(1);
   const [issueType, setIssueType] = useState<"full" | "partial">("full");
@@ -1425,10 +1599,10 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
   }, [action]);
 
   function scanForIssue(rawValue = scanValue) {
-    const normalized = rawValue.trim().toUpperCase();
+    const normalized = normalizeScannedValue(rawValue).toUpperCase();
     if (!normalized) {
       onToast("กรุณาสแกน QR หรือกรอก Serial ก่อน");
-      return;
+      return false;
     }
     let found = units.find((unit) => {
       const unitSerial = unit.serial.toUpperCase();
@@ -1452,11 +1626,11 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
     }
     if (!found) {
       onToast("ไม่พบ Serial นี้ และยังระบุรุ่นจาก QR ไม่ได้ กรุณาตรวจรหัสที่สแกน");
-      return;
+      return false;
     }
     if (!["available", "open", "reserved"].includes(found.status)) {
       onToast(`Serial นี้อยู่ในสถานะ “${STATUS_LABELS[found.status]}” จึงยังเบิกจ่ายไม่ได้`);
-      return;
+      return false;
     }
     setSerial(found.serial);
     setScanValue(found.serial);
@@ -1466,18 +1640,7 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
     onToast(found.source === "existing-qr" && found.updatedAt === "ผูก QR เมื่อสักครู่"
       ? `ผูก QR กับสต๊อกตั้งต้นแล้ว · ${found.product}`
       : `พบ ${found.product} · คงเหลือ ${found.metres.toFixed(1)} เมตร`);
-  }
-
-  function demoIssueScan() {
-    const demo = units.find((unit) => unit.product === "NEXS BEGIN" && ["available", "open"].includes(unit.status))
-      ?? eligible.find((unit) => ["available", "open"].includes(unit.status))
-      ?? eligible[0];
-    if (!demo) {
-      onToast("ไม่มีสินค้าในสถานะที่เบิกจ่ายได้");
-      return;
-    }
-    setScanValue(demo.serial);
-    scanForIssue(demo.serial);
+    return true;
   }
 
   function selectUnlabelledForIssue() {
@@ -1560,6 +1723,12 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
 
   return (
     <>
+      <CameraScanner
+        open={issueScannerOpen}
+        mode="qr"
+        onClose={() => setIssueScannerOpen(false)}
+        onDetected={(value) => scanForIssue(value)}
+      />
       <PageHeading
         eyebrow={action === "issue" ? "SCAN + ISSUE" : "TRANSACTIONS"}
         title={action === "issue" ? "เบิกจ่ายสินค้า เริ่มจากการสแกน" : "คืน ย้าย และแจ้งเสียหาย"}
@@ -1624,8 +1793,8 @@ function MovementView({ units, setUnits, colorProducts, onActivity, onToast }: {
                           <button type="button" onClick={() => scanForIssue()}>ค้นหา Serial</button>
                         </div>
                       </label>
-                      <button className={styles.issueDemoScan} type="button" onClick={demoIssueScan}>▣ เปิด Scanner (ทดลอง)</button>
-                      <small>ตัวทดลองจะสแกน NEXS Begin ที่อยู่ในสต็อก เพื่อแสดง Flow การเบิกจ่าย</small>
+                      <button className={styles.issueDemoScan} type="button" onClick={() => setIssueScannerOpen(true)}>▣ เปิดกล้องสแกน QR / Label</button>
+                      <small>ครั้งแรกมือถือจะถามสิทธิ์ใช้กล้อง หากไม่ขึ้นสามารถถ่ายรูปหรือกรอก Serial เองได้</small>
                     </div>
                   ) : (
                     <div className={styles.unlabelledIssuePanel}>
@@ -1983,7 +2152,7 @@ function ReportsView({ activity, units }: { activity: Activity[]; units: StockUn
           <li><span>!</span><div><b>ต้องสแกน QR จริงอย่างน้อยรุ่นละ 1 กล่อง</b><small>เพื่อยืนยันรูปแบบ Serial และรหัสรุ่น Begin / Prime / Pro / Ultimate</small></div></li>
           <li><span>!</span><div><b>ต้องเก็บค่า Barcode ตัวเลขของกล่องทั่วไป</b><small>ขณะนี้ระบบใช้ SKU Code ภายในแทน Barcode ผู้ผลิต</small></div></li>
           <li><span>!</span><div><b>ต้องยืนยันขนาด/ประเภท {needsVerification.length} SKU</b><small>{needsVerification.map((product) => product.value).join(", ")}</small></div></li>
-          <li><span>!</span><div><b>ต้องเชื่อม Scanner และเครื่องพิมพ์ Label รุ่นจริง</b><small>ปุ่ม Scanner และสถานะพิมพ์ยังเป็นโหมดทดลองจนกว่าอุปกรณ์จริงจะเชื่อมต่อ</small></div></li>
+          <li><span>!</span><div><b>กล้องมือถือพร้อมสแกนแล้ว · เครื่องพิมพ์ Label ยังรอเชื่อมต่อ</b><small>รองรับกล้องหลัง การถ่ายรูป และเครื่อง Scanner แบบยิงรหัสลงช่องกรอก</small></div></li>
         </ul>
       </section>
       <section className={styles.auditPanel}>
