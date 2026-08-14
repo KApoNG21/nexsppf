@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function WarrantyCardPage({ params }: { params: Promise<{ serial: string }> }) {
   const { serial } = await params;
-  const key = decodeURIComponent(serial).toUpperCase();
+  const key = serial.trim().toUpperCase().replace(/\s+/g, "");
   let record: PublicWarrantyRecord | undefined;
   try {
     record = await findPublicWarranty(key) ?? undefined;
@@ -50,7 +50,8 @@ export default async function WarrantyCardPage({ params }: { params: Promise<{ s
               </article>
             )) : <p className="empty-service-history">ยังไม่มีประวัติการเข้ารับบริการ</p>}
           </section>
-          <div className="card-actions"><ArrowLink href={`/support/inspection?serial=${encodeURIComponent(record.serial)}`}>นัดตรวจสภาพ</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodeURIComponent(record.serial)}`}>ติดต่อเรื่องรับประกัน</ArrowLink>{!expired && <ArrowLink secondary href={`/dealer/maintenance?serial=${encodeURIComponent(record.serial)}`}>Dealer บันทึก Maintenance</ArrowLink>}</div>
+          <div className="card-actions"><ArrowLink href={`/support/inspection?serial=${encodeURIComponent(record.serial)}`}>นัดตรวจสภาพ</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodeURIComponent(record.serial)}`}>ติดต่อเรื่องรับประกัน</ArrowLink></div>
+          {!expired && <p className="dealer-only-action">สำหรับศูนย์ติดตั้ง: <Link href={`/dealer/maintenance?serial=${encodeURIComponent(record.serial)}`}>บันทึกประวัติการดูแล</Link></p>}
           <small>ข้อมูลลูกค้าและทะเบียนรถแสดงแบบปกปิดตามหลัก PDPA</small>
         </section>
         <aside><p className="eyebrow slash">VERIFIED RECORD</p><h2>บัตรรับประกันดิจิทัลของ NEXS</h2><p>QR ใบเดียวใช้ตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการหลังการขายได้ตลอดอายุการใช้งาน</p><WarrantyJourney current="active" /><ol><li>ข้อมูลส่วนตัวไม่แสดงต่อสาธารณะ</li><li>Dealer บันทึก Maintenance จาก QR เดิม</li><li>ส่งคำขอตรวจสภาพหรือรับประกันได้ทันที</li></ol><Link href="/warranty-policy">อ่านเงื่อนไขรับประกัน →</Link></aside>
@@ -60,7 +61,7 @@ export default async function WarrantyCardPage({ params }: { params: Promise<{ s
 }
 
 function WarrantyState({ status, serial, record }: { status: string; serial: string; record?: PublicWarrantyRecord }) {
-  const content: Record<string, [string, string]> = { "not-registered": ["QR นี้ยังไม่ถูกเปิดใช้งาน", "ให้ Dealer ล็อกอินและสแกน QR นี้เพื่อบันทึกวันที่ติดตั้ง ระบบจะสร้าง Serial ให้อัตโนมัติ ไม่ต้องรอสำนักงานใหญ่"], "profile-required": ["Dealer เปิดบัตรแล้ว กรุณาเติมข้อมูล", "วันที่ติดตั้งและวันหมดอายุถูกบันทึกแล้ว ลูกค้ากรอกข้อมูลเจ้าของรถอีกครั้งเดียวเพื่อให้บัตรสมบูรณ์"], expired: ["บัตรรับประกันหมดอายุ", "คุณยังสามารถส่งคำขอตรวจสอบหรือสอบถามช่องทางบริการหลังการขายได้"], "under-review": ["ข้อมูลอยู่ระหว่างตรวจสอบ", "ระบบจะยังไม่แสดงผลการพิจารณาอัตโนมัติ กรุณารอ Dealer/Admin อัปเดตสถานะ"], "service-unavailable": ["ระบบตรวจสอบยังไม่พร้อมใช้งาน", "ไม่มีการแสดงข้อมูลตัวอย่างแทนข้อมูลจริง กรุณาลองใหม่อีกครั้งหรือติดต่อ NEXS หากยังพบปัญหา"], invalid: ["QR หรือ Serial ไม่ถูกต้อง", "ตรวจสอบตัวอักษรและตัวเลขอีกครั้ง หรือส่งคำขอ Support โดยระบบจะไม่เปิดเผยข้อมูล Serial อื่น"] };
+  const content: Record<string, [string, string]> = { "not-registered": ["บัตรนี้ยังไม่ถูกเปิดใช้งาน", "หากเพิ่งติดตั้ง กรุณาติดต่อศูนย์ติดตั้งให้เปิดบัตรก่อน แล้วสแกน QR เดิมอีกครั้ง"], "profile-required": ["บัตรพร้อมแล้ว กรุณาเติมข้อมูล", "ศูนย์ติดตั้งบันทึกวันที่ติดตั้งแล้ว เหลือเพียงข้อมูลเจ้าของและรถอีกครั้งเดียวเพื่อเปิดบัตรให้สมบูรณ์"], expired: ["บัตรรับประกันหมดอายุ", "คุณยังสามารถส่งคำขอตรวจสอบหรือสอบถามช่องทางบริการหลังการขายได้"], "under-review": ["ข้อมูลอยู่ระหว่างตรวจสอบ", "ระบบจะยังไม่แสดงผลการพิจารณาอัตโนมัติ กรุณารอศูนย์ติดตั้งหรือ NEXS อัปเดตสถานะ"], "service-unavailable": ["ระบบตรวจสอบยังไม่พร้อมใช้งาน", "ไม่มีการแสดงข้อมูลตัวอย่างแทนข้อมูลจริง กรุณาลองใหม่อีกครั้งหรือติดต่อ NEXS หากยังพบปัญหา"], invalid: ["QR หรือ Serial ไม่ถูกต้อง", "ตรวจสอบตัวอักษรและตัวเลขอีกครั้ง หรือส่งคำขอช่วยเหลือ โดยระบบจะไม่เปิดเผยข้อมูล Serial อื่น"] };
   const [title, copy] = content[status] ?? content.invalid;
   const encodedSerial = encodeURIComponent(serial);
   const isNotRegistered = status === "not-registered";
@@ -78,10 +79,11 @@ function WarrantyState({ status, serial, record }: { status: string; serial: str
           <p>{copy}</p>
           {(isNotRegistered || needsProfile) && <WarrantyJourney current={isNotRegistered ? "dealer" : "customer"} />}
           {record && <dl><CardRow label="ผลิตภัณฑ์" value={record.product} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /></dl>}
-          {isNotRegistered && <div className="registration-audience-note"><b>เปิดใช้งานได้ทันที ไม่ต้องรอสำนักงานใหญ่</b><p>Dealer สแกน QR และบันทึกวันที่ติดตั้ง ระบบอ่านรุ่นจาก Prefix ของ Serial และคำนวณวันหมดอายุให้อัตโนมัติ</p></div>}
+          {isNotRegistered && <div className="registration-audience-note"><b>สำหรับลูกค้า</b><p>นำ Serial นี้แจ้งศูนย์ที่ติดตั้งให้เปิดใช้งานบัตร เมื่อเสร็จแล้วใช้ QR ใบเดิมได้ทันที</p></div>}
           <div className="state-actions">
-            {isNotRegistered ? <><ArrowLink href={`/dealer/register-warranty?serial=${encodedSerial}`}>Dealer: เปิดใช้งาน Serial</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodedSerial}`}>ลูกค้า: ติดต่อ Dealer</ArrowLink></> : needsProfile ? <><ArrowLink href={`/warranty/complete?serial=${encodedSerial}`}>ลูกค้า: กรอกข้อมูลให้สมบูรณ์</ArrowLink><ArrowLink secondary href={`/dealer/maintenance?serial=${encodedSerial}`}>Dealer: เพิ่ม Maintenance</ArrowLink></> : <><ArrowLink href="/warranty">ค้นหาอีกครั้ง</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodedSerial}`}>ติดต่อ Support</ArrowLink></>}
+            {isNotRegistered ? <><ArrowLink href={`/support/warranty?serial=${encodedSerial}`}>ติดต่อศูนย์ติดตั้ง / NEXS</ArrowLink><ArrowLink secondary href="/warranty">ตรวจสอบรหัสอีกครั้ง</ArrowLink></> : needsProfile ? <><ArrowLink href={`/warranty/complete?serial=${encodedSerial}`}>กรอกข้อมูลและเปิดบัตร</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodedSerial}`}>พบปัญหา ติดต่อ NEXS</ArrowLink></> : <><ArrowLink href="/warranty">ค้นหาอีกครั้ง</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodedSerial}`}>ติดต่อ NEXS</ArrowLink></>}
           </div>
+          {isNotRegistered && <p className="dealer-only-action">สำหรับศูนย์ติดตั้งเท่านั้น: <Link href={`/dealer/register-warranty?serial=${encodedSerial}`}>เข้าสู่ระบบเพื่อเปิด Serial</Link></p>}
         </section>
       </main>
     </div>

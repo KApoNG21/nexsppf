@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Logo, WarrantyJourney } from "../../components";
-import { DemoForm } from "../../client-ui";
+import { CustomerWarrantyForm } from "../../warranty-client";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function CustomerWarrantyCompletePage({
           <h1>เติมข้อมูลเพื่อให้บัตรสมบูรณ์</h1>
           <p>Dealer เปิดใช้งานและบันทึกวันที่ติดตั้งแล้ว กรุณากรอกข้อมูลเจ้าของรถครั้งเดียว หลังจากนั้นใช้ QR เดิมตรวจสอบบัตรและประวัติบริการได้ตลอด</p>
           <WarrantyJourney current="customer" />
-          <DemoForm kind="customer-complete" initialSerial={safeSerial} />
+          <CustomerWarrantyForm serial={safeSerial} />
         </section>
       </main>
     </div>

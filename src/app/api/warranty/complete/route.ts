@@ -18,12 +18,14 @@ export async function POST(request: Request) {
 
     const serialCode = normalizeSerial(requiredText(form, "serialCode", "Serial Number", 6, 64));
     const customerName = requiredText(form, "customerName", "ชื่อ-นามสกุล", 2, 120);
-    const customerPhone = requiredText(form, "customerPhone", "เบอร์โทรศัพท์", 8, 40);
+    const rawPhone = requiredText(form, "customerPhone", "เบอร์โทรศัพท์", 8, 40).replace(/\D/g, "");
+    const customerPhone = rawPhone.startsWith("66") && rawPhone.length === 11 ? `0${rawPhone.slice(2)}` : rawPhone;
+    if (customerPhone.length < 9 || customerPhone.length > 10) throw new PartnerValidationError("กรุณากรอกเบอร์โทรศัพท์ 9–10 หลัก");
     const customerEmail = formText(form, "customerEmail");
     if (customerEmail && !/^\S+@\S+\.\S+$/.test(customerEmail)) throw new PartnerValidationError("รูปแบบอีเมลไม่ถูกต้อง");
-    const vehicleMake = requiredText(form, "vehicleMake", "ยี่ห้อรถ", 1, 80);
+    const vehicleMake = requiredText(form, "vehicleMake", "ยี่ห้อรถ", 2, 80);
     const vehicleModel = requiredText(form, "vehicleModel", "รุ่นรถ", 1, 120);
-    const vehiclePlate = requiredText(form, "vehiclePlate", "ทะเบียนรถ", 1, 40);
+    const vehiclePlate = requiredText(form, "vehiclePlate", "ทะเบียนรถ", 2, 40);
 
     const current = await env.DB.prepare(
       "SELECT id, status FROM warranties WHERE serial_code = ? LIMIT 1",

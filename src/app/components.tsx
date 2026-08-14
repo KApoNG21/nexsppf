@@ -168,7 +168,7 @@ export function StatCard({ label, value, note }: { label: string; value: string;
 }
 
 export function StatusPill({ status }: { status: string }) {
-  const labels: Record<string, string> = { active: "ACTIVE", pending: "รอตรวจสอบ", "pending-customer": "รอลูกค้ากรอกข้อมูล", "profile-required": "รอลูกค้ากรอกข้อมูล", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่เปิดใช้งาน", "no-account": "ยังไม่มีบัญชี", "password-change": "รอเปลี่ยนรหัส", "account-suspended": "บัญชีถูกระงับ", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
+  const labels: Record<string, string> = { active: "พร้อมใช้งาน", pending: "รอตรวจสอบ", "pending-customer": "รอลูกค้ากรอกข้อมูล", "profile-required": "รอลูกค้ากรอกข้อมูล", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่เปิดใช้งาน", "no-account": "ยังไม่มีบัญชี", "password-change": "รอเปลี่ยนรหัส", "account-suspended": "บัญชีถูกระงับ", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
   return <span className={`status-pill status-${status}`}>{labels[status] ?? status}</span>;
 }
 

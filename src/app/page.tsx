@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLink, Logo, PageShell, ProductCard, SectionTitle, TrustStrip } from "./components";
-import { WarrantyLookup } from "./client-ui";
+import { WarrantyLookup } from "./warranty-client";
 import { clearTiers } from "./content";
 
 export const metadata: Metadata = {

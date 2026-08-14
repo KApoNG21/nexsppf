@@ -102,7 +102,8 @@ describe("unified NEXS production system", () => {
       readFile("src/app/client-ui.tsx", "utf8"),
     ]);
     expect(publicCard).toContain("/dealer/register-warranty?serial=");
-    expect(publicCard).toContain("เปิดใช้งานได้ทันที ไม่ต้องรอสำนักงานใหญ่");
+    expect(publicCard).toContain("สำหรับศูนย์ติดตั้งเท่านั้น");
+    expect(publicCard).toContain("ติดต่อศูนย์ติดตั้ง / NEXS");
     expect(publicCard).toContain("/warranty/complete?serial=");
     expect(publicCard).toContain("/dealer/maintenance?serial=");
     expect(dealerPage).toContain("initialSerial={initialSerial}");
