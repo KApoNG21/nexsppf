@@ -26,6 +26,14 @@ export async function POST(request: Request) {
     const vehicleMake = requiredText(form, "vehicleMake", "ยี่ห้อรถ", 2, 80);
     const vehicleModel = requiredText(form, "vehicleModel", "รุ่นรถ", 1, 120);
     const vehiclePlate = requiredText(form, "vehiclePlate", "ทะเบียนรถ", 2, 40);
+    const vehicleYear = Number(requiredText(form, "vehicleYear", "ปีรถ", 4, 4));
+    if (!Number.isInteger(vehicleYear) || vehicleYear < 1950 || vehicleYear > new Date().getFullYear() + 1) throw new PartnerValidationError("ปีรถไม่ถูกต้อง กรุณากรอกเป็น ค.ศ.");
+    const vehicleColor = requiredText(form, "vehicleColor", "สีรถก่อน Wrap", 2, 60);
+    const vehicleVinLast6 = formText(form, "vehicleVinLast6").toUpperCase();
+    if (vehicleVinLast6 && !/^[A-Z0-9]{4,6}$/.test(vehicleVinLast6)) throw new PartnerValidationError("เลขตัวถัง 6 ตัวท้ายไม่ถูกต้อง");
+    const odometerText = formText(form, "odometerKm");
+    const odometerKm = odometerText ? Number(odometerText) : null;
+    if (odometerKm !== null && (!Number.isInteger(odometerKm) || odometerKm < 0 || odometerKm > 5000000)) throw new PartnerValidationError("เลขไมล์ไม่ถูกต้อง");
 
     const current = await env.DB.prepare(
       "SELECT id, status FROM warranties WHERE serial_code = ? LIMIT 1",
@@ -39,7 +47,8 @@ export async function POST(request: Request) {
       WITH updated AS (
         UPDATE warranties
         SET customer_name = ?, customer_phone = ?, customer_email = ?,
-          vehicle_make = ?, vehicle_model = ?, vehicle_plate = ?,
+          vehicle_make = ?, vehicle_model = ?, vehicle_plate = ?, vehicle_year = ?, vehicle_color = ?,
+          vehicle_vin_last6 = ?, odometer_km = ?,
           customer_completed_at = CURRENT_TIMESTAMP, status = 'active'
         WHERE id = ? AND status = 'pending_customer'
         RETURNING id
@@ -56,6 +65,10 @@ export async function POST(request: Request) {
       vehicleMake,
       vehicleModel,
       vehiclePlate,
+      vehicleYear,
+      vehicleColor,
+      vehicleVinLast6 || null,
+      odometerKm,
       current.id,
       serialCode,
       JSON.stringify({ source: "qr-self-service" }),

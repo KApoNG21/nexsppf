@@ -65,10 +65,15 @@ await check("Dealer cannot access Admin portal", async () => {
   assert(!html.includes("Operations Overview"), "Dealer reached the Admin dashboard");
 });
 
-await check("Dealer activates a factory QR with only the installation date", async () => {
+await check("Dealer opens a Wrap job with installation evidence", async () => {
   const form = new FormData();
   form.set("serialCode", serialCode);
   form.set("installDate", "2026-07-23");
+  form.set("workOrderRef", "WRAP-QA-20260814-01");
+  form.set("installationType", "full_body");
+  form.set("coverageArea", "ติดตั้งเต็มคัน ยกเว้นหลังคา");
+  form.set("installationBranch", "พระราม 2");
+  form.set("installerName", "QA Lead Installer");
   form.set("maintenanceIncluded", "on");
   form.set("maintenanceIntervalMonths", "6");
   form.set("maintenanceVisitLimit", "4");
@@ -97,6 +102,10 @@ await check("Customer completes the warranty profile from the same QR", async ()
   form.set("vehicleMake", "Porsche");
   form.set("vehicleModel", "911 Carrera");
   form.set("vehiclePlate", "กข 1234");
+  form.set("vehicleYear", "2025");
+  form.set("vehicleColor", "Black");
+  form.set("vehicleVinLast6", "QA1234");
+  form.set("odometerKm", "12500");
   form.set("consent", "on");
   form.set("company", "");
   const response = await post("/api/warranty/complete", form);
@@ -169,6 +178,10 @@ await check("Public warranty card is active and hides customer PII", async () =>
   const record = await apiResponse.json();
   equal(record.status, "active");
   equal(record.serial, serialCode);
+  equal(record.workOrder, "WRAP-QA-20260814-01");
+  equal(record.wrapType, "Wrap เต็มคัน");
+  equal(record.coverage, "ติดตั้งเต็มคัน ยกเว้นหลังคา");
+  equal(record.branch, "พระราม 2");
   assert(record.vehicle.includes("••••"), "Vehicle plate is not masked");
   equal(record.benefits.maintenance.used, 1);
   equal(record.benefits.maintenance.limit, 4);

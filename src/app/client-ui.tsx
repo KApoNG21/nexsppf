@@ -137,7 +137,7 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
       <Field name="serialCode" label="Serial Number" placeholder="P-TH-000124" defaultValue={initialSerial} required />
       <Field name="contactName" label="ชื่อผู้ติดต่อ" placeholder="ชื่อ-นามสกุล" required />
       <Field name="contactPhone" label="เบอร์โทรศัพท์" placeholder="08x xxx xxxx" required />
-      <label>ประเภทคำขอ<select name="requestType" required defaultValue=""><option value="" disabled>เลือกประเภท</option><option>{kind === "inspection" ? "นัดตรวจสภาพ" : "สอบถามการรับประกัน"}</option><option>บัตร QR สูญหาย</option><option>ต้องการข้อมูลเพิ่มเติม</option></select></label>
+      <label>ประเภทคำขอ<select name="requestType" required defaultValue=""><option value="" disabled>เลือกประเภท</option>{kind === "inspection" ? <><option>ตรวจสภาพหลังติดตั้ง</option><option>ตรวจตามรอบ</option><option>ตรวจขอบฟิล์ม / การยกตัว</option><option>ตรวจหลังเกิดอุบัติเหตุ</option></> : <><option>ฟิล์มยกตัว / ขอบหลุด</option><option>ฟองอากาศ / รอยผิดปกติ</option><option>สีหรือผิวฟิล์มเปลี่ยน</option><option>ขอเคลมชิ้นส่วน</option><option>ขอ Re-wrap</option><option>บัตร QR สูญหาย</option><option>สอบถามเงื่อนไขรับประกัน</option></>}</select></label>
       <label className="field-wide">รายละเอียด<textarea name="detail" rows={5} placeholder="อธิบายอาการหรือรายละเอียดที่ต้องการให้ตรวจสอบ" required /></label>
       <label className="field-wide file-field">ภาพประกอบ (ไม่บังคับ)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple /><small>แนบได้สูงสุด 3 ภาพ ไฟล์ละไม่เกิน 5 MB และจัดเก็บแบบ private</small></label>
       <Honeypot />
@@ -151,7 +151,12 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
     <form className="form-grid" onSubmit={submit}>
       <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required />
       <Field name="installDate" label="วันที่ติดตั้ง" type="date" required />
-      <p className="field-wide form-note">กดเปิดใช้งานได้ทันที ลูกค้าจะกรอกชื่อ เบอร์โทร และข้อมูลรถด้วย QR เดิมในขั้นตอนถัดไป</p>
+      <Field name="workOrderRef" label="เลขที่งาน / ใบสั่งงาน" placeholder="เช่น WRAP-R2-260814-01" required />
+      <label>รูปแบบงาน Wrap<select name="installationType" required defaultValue="full_body"><option value="full_body">Wrap เต็มคัน</option><option value="partial">Wrap บางส่วน</option><option value="color_wrap">เปลี่ยนสีรถ</option><option value="custom">งานออกแบบพิเศษ</option></select></label>
+      <label className="field-wide">พื้นที่ที่ติดตั้ง<textarea name="coverageArea" rows={3} placeholder="เช่น เต็มคัน ยกเว้นหลังคา / ฝากระโปรงหน้า กันชนหน้า และกระจกมองข้าง" maxLength={500} required /></label>
+      <Field name="installationBranch" label="สาขาที่ติดตั้ง" placeholder="เช่น พระราม 2 / รัชดา / CDC" required />
+      <Field name="installerName" label="ผู้ติดตั้ง / หัวหน้าช่าง" placeholder="ชื่อผู้รับผิดชอบงาน" required />
+      <p className="field-wide form-note">ข้อมูลชุดนี้คือหลักฐานของงาน Wrap ลูกค้าจะกรอกข้อมูลเจ้าของรถและยืนยันรถด้วย QR เดิมในขั้นตอนถัดไป</p>
       <fieldset className="field-wide service-plan-builder">
         <legend>แพ็กเกจบริการหลังการขายของร้าน</legend>
         <p>เลือกเฉพาะสิทธิ์ที่ร้านมอบให้ลูกค้ารายนี้ รายการที่ไม่เลือกจะแสดงว่า “ไม่รวมในแพ็กเกจ”</p>
@@ -163,7 +168,7 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
         {rewrapIncluded && <div className="service-plan-fields"><Field name="rewrapPieceLimit" label="สิทธิ์ Re-wrap ทั้งหมด (ชิ้น)" type="number" defaultValue="2" required /></div>}
         <label className="service-plan-note-field">หมายเหตุเงื่อนไข (ไม่บังคับ)<textarea name="planNote" rows={3} placeholder="เช่น ต้องเข้าตรวจตามรอบ และสิทธิ์เป็นไปตามเงื่อนไขของร้าน" maxLength={500} /></label>
       </fieldset>
-      <label className="field-wide file-field">ภาพงานติดตั้ง (ไม่บังคับ)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple /><small>สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB และจัดเก็บแบบ private</small></label>
+      <label className="field-wide file-field">ภาพหลักฐานงานติดตั้ง<input name="photos" type="file" accept="image/*" multiple required /><small>ต้องมีอย่างน้อย 1 ภาพ และแนะนำ 4 ภาพ: หน้ารถ ด้านซ้าย ด้านขวา และรายละเอียดงาน · รองรับภาพจาก iPhone/Android สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB</small></label>
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
       <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังเปิดใช้งาน..." : `เปิดใช้งาน Serial →`}</button>
     </form>

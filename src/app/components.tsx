@@ -174,9 +174,9 @@ export function StatusPill({ status }: { status: string }) {
 
 export function WarrantyJourney({ current }: { current: "dealer" | "customer" | "active" }) {
   const steps = [
-    ["dealer", "01", "Dealer เปิด QR", "บันทึกวันที่ติดตั้ง"],
-    ["customer", "02", "ลูกค้าเติมข้อมูล", "ทำครั้งเดียว"],
-    ["active", "03", "บัตรพร้อมใช้งาน", "ตรวจสอบและดูแลต่อ"],
+    ["dealer", "01", "ศูนย์เปิดงาน Wrap", "บันทึกขอบเขตและหลักฐาน"],
+    ["customer", "02", "ลูกค้ายืนยันรถ", "ทำครั้งเดียว"],
+    ["active", "03", "บัตรพร้อมใช้งาน", "ดูสิทธิ์และประวัติบริการ"],
   ] as const;
   const currentIndex = steps.findIndex(([key]) => key === current);
   return (

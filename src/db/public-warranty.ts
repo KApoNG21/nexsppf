@@ -30,6 +30,12 @@ export type PublicWarrantyRecord = {
   install: string;
   expiry: string;
   dealer: string;
+  workOrder: string;
+  wrapType: string;
+  coverage: string;
+  branch: string;
+  vehicleYear: number | null;
+  vehicleColor: string | null;
   maintenance: string;
   nextMaintenance: string;
   planNote: string | null;
@@ -56,6 +62,12 @@ type PublicWarrantyRow = {
   product_name: string | null;
   dealer_name: string | null;
   dealer_province: string | null;
+  work_order_ref: string | null;
+  installation_type: string;
+  coverage_area: string;
+  installation_branch: string | null;
+  vehicle_year: number | null;
+  vehicle_color: string | null;
 };
 
 type PlanRow = {
@@ -105,7 +117,13 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
       w.status AS warranty_status,
       ps.name AS product_name,
       d.name AS dealer_name,
-      d.province AS dealer_province
+      d.province AS dealer_province,
+      w.work_order_ref,
+      COALESCE(w.installation_type, 'full_body') AS installation_type,
+      COALESCE(w.coverage_area, 'ติดตั้งเต็มคัน') AS coverage_area,
+      w.installation_branch,
+      w.vehicle_year,
+      w.vehicle_color
     FROM serials s
     LEFT JOIN warranties w ON w.serial_code = s.serial_code
     LEFT JOIN product_series ps ON ps.model_code = COALESCE(w.product_model_code, s.model_code)
@@ -125,6 +143,12 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
     dealer: row.dealer_name
       ? `${row.dealer_name}${row.dealer_province ? ` · ${row.dealer_province}` : ""}`
       : "NEXS Authorized Dealer",
+    workOrder: row.work_order_ref || "-",
+    wrapType: installationTypeLabel(row.installation_type),
+    coverage: row.coverage_area,
+    branch: row.installation_branch || row.dealer_name || "NEXS Authorized Dealer",
+    vehicleYear: row.vehicle_year == null ? null : Number(row.vehicle_year),
+    vehicleColor: row.vehicle_color,
     nextMaintenance: "-",
     planNote: null,
     benefits: emptyBenefits(),
@@ -203,7 +227,7 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
     ...base,
     status,
     expiry: status === "under-review" ? "อยู่ระหว่างตรวจสอบ" : base.expiry,
-    vehicle: `${[row.vehicle_make, row.vehicle_model].filter(Boolean).join(" ") || "Vehicle"} · ${maskPlate(row.vehicle_plate)}`,
+    vehicle: `${[row.vehicle_make, row.vehicle_model, row.vehicle_year].filter(Boolean).join(" ") || "Vehicle"}${row.vehicle_color ? ` · สีเดิม ${row.vehicle_color}` : ""} · ${maskPlate(row.vehicle_plate)}`,
     maintenance: benefits.maintenance.included
       ? `${benefits.maintenance.used}/${benefits.maintenance.limit} ครั้ง`
       : "ไม่รวมในแพ็กเกจ",
@@ -212,6 +236,10 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
     benefits,
     serviceHistory: history,
   };
+}
+
+function installationTypeLabel(value: string): string {
+  return { full_body: "Wrap เต็มคัน", partial: "Wrap บางส่วน", color_wrap: "เปลี่ยนสีรถ", custom: "งานออกแบบพิเศษ" }[value] ?? "งาน Wrap";
 }
 
 function benefit(included: boolean, used: number, limit: number | null | undefined, intervalMonths?: number | null): PublicServiceBenefit {

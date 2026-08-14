@@ -20,8 +20,8 @@ export default async function CustomerWarrantyCompletePage({
       <main className="state-card-wrap">
         <section className="state-card customer-complete-card">
           <p className="eyebrow slash">CUSTOMER REGISTRATION</p>
-          <h1>เติมข้อมูลเพื่อให้บัตรสมบูรณ์</h1>
-          <p>Dealer เปิดใช้งานและบันทึกวันที่ติดตั้งแล้ว กรุณากรอกข้อมูลเจ้าของรถครั้งเดียว หลังจากนั้นใช้ QR เดิมตรวจสอบบัตรและประวัติบริการได้ตลอด</p>
+          <h1>ยืนยันรถและเปิดบัตรงาน Wrap</h1>
+          <p>ศูนย์ติดตั้งบันทึกขอบเขตงาน Wrap และหลักฐานการติดตั้งแล้ว กรุณายืนยันข้อมูลเจ้าของและรถครั้งเดียว หลังจากนั้นใช้ QR เดิมดูงานที่รับประกันและประวัติบริการได้ตลอด</p>
           <WarrantyJourney current="customer" />
           <CustomerWarrantyForm serial={safeSerial} />
         </section>

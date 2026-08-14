@@ -10,7 +10,10 @@ const reports = {
   warranties: {
     filename: "nexs-warranties.csv",
     sql: `SELECT w.serial_code, w.product_model_code, d.dealer_code, d.name AS dealer_name,
-      w.vehicle_make, w.vehicle_model, w.install_date, w.expiry_date, w.status,
+      w.work_order_ref, w.installation_type, w.coverage_area, w.installation_branch,
+      w.installer_name, w.vehicle_make, w.vehicle_model, w.vehicle_year, w.vehicle_color,
+      w.vehicle_plate, w.vehicle_vin_last6, w.odometer_km,
+      w.install_date, w.expiry_date, w.status,
       p.maintenance_included, p.maintenance_interval_months, p.maintenance_visit_limit,
       p.claim_included, p.claim_piece_limit, p.rewrap_included, p.rewrap_piece_limit,
       p.plan_note, w.created_at

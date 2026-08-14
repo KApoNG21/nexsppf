@@ -34,7 +34,7 @@ export default async function WarrantyCardPage({ params }: { params: Promise<{ s
           {expired && <p className="expired-card-note">บัตรหมดอายุแล้ว แต่ประวัติบริการยังตรวจสอบได้ตามปกติ</p>}
           <h1>{record.product}</h1>
           <p className="serial-label">SERIAL NUMBER</p><strong className="serial-value">{record.serial}</strong>
-          <dl><CardRow label="รถ" value={record.vehicle} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="ดูแลครั้งถัดไป" value={record.nextMaintenance} /><CardRow label="ศูนย์ติดตั้ง" value={record.dealer} /></dl>
+          <dl><CardRow label="เลขที่งาน" value={record.workOrder} /><CardRow label="รูปแบบงาน" value={record.wrapType} /><CardRow label="พื้นที่ติดตั้ง" value={record.coverage} /><CardRow label="รถ" value={record.vehicle} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="ดูแลครั้งถัดไป" value={record.nextMaintenance} /><CardRow label="สาขา" value={record.branch} /><CardRow label="ศูนย์ติดตั้ง" value={record.dealer} /></dl>
           <div className="service-benefit-grid">
             <BenefitCard label="Maintenance" unit="ครั้ง" benefit={record.benefits.maintenance} detail={record.benefits.maintenance.intervalMonths ? `ทุก ${record.benefits.maintenance.intervalMonths} เดือน` : undefined} />
             <BenefitCard label="เคลม" unit="ชิ้น" benefit={record.benefits.claim} />
@@ -50,7 +50,7 @@ export default async function WarrantyCardPage({ params }: { params: Promise<{ s
               </article>
             )) : <p className="empty-service-history">ยังไม่มีประวัติการเข้ารับบริการ</p>}
           </section>
-          <div className="card-actions"><ArrowLink href={`/support/inspection?serial=${encodeURIComponent(record.serial)}`}>นัดตรวจสภาพ</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodeURIComponent(record.serial)}`}>ติดต่อเรื่องรับประกัน</ArrowLink></div>
+          <div className="card-actions"><ArrowLink href={`/support/inspection?serial=${encodeURIComponent(record.serial)}`}>นัดตรวจสภาพงาน Wrap</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodeURIComponent(record.serial)}`}>แจ้งปัญหา / ขอเคลม</ArrowLink></div>
           {!expired && <p className="dealer-only-action">สำหรับศูนย์ติดตั้ง: <Link href={`/dealer/maintenance?serial=${encodeURIComponent(record.serial)}`}>บันทึกประวัติการดูแล</Link></p>}
           <small>ข้อมูลลูกค้าและทะเบียนรถแสดงแบบปกปิดตามหลัก PDPA</small>
         </section>
@@ -78,7 +78,7 @@ function WarrantyState({ status, serial, record }: { status: string; serial: str
           <h1>{title}</h1>
           <p>{copy}</p>
           {(isNotRegistered || needsProfile) && <WarrantyJourney current={isNotRegistered ? "dealer" : "customer"} />}
-          {record && <dl><CardRow label="ผลิตภัณฑ์" value={record.product} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /></dl>}
+          {record && <dl><CardRow label="ผลิตภัณฑ์" value={record.product} /><CardRow label="เลขที่งาน" value={record.workOrder} /><CardRow label="รูปแบบงาน" value={record.wrapType} /><CardRow label="พื้นที่ติดตั้ง" value={record.coverage} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="สาขา" value={record.branch} /></dl>}
           {isNotRegistered && <div className="registration-audience-note"><b>สำหรับลูกค้า</b><p>นำ Serial นี้แจ้งศูนย์ที่ติดตั้งให้เปิดใช้งานบัตร เมื่อเสร็จแล้วใช้ QR ใบเดิมได้ทันที</p></div>}
           <div className="state-actions">
             {isNotRegistered ? <><ArrowLink href={`/support/warranty?serial=${encodedSerial}`}>ติดต่อศูนย์ติดตั้ง / NEXS</ArrowLink><ArrowLink secondary href="/warranty">ตรวจสอบรหัสอีกครั้ง</ArrowLink></> : needsProfile ? <><ArrowLink href={`/warranty/complete?serial=${encodedSerial}`}>กรอกข้อมูลและเปิดบัตร</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodedSerial}`}>พบปัญหา ติดต่อ NEXS</ArrowLink></> : <><ArrowLink href="/warranty">ค้นหาอีกครั้ง</ArrowLink><ArrowLink secondary href={`/support/warranty?serial=${encodedSerial}`}>ติดต่อ NEXS</ArrowLink></>}

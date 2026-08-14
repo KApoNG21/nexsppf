@@ -25,6 +25,15 @@ export type DealerWarrantyDetail = {
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_plate: string | null;
+  vehicle_year: number | null;
+  vehicle_color: string | null;
+  vehicle_vin_last6: string | null;
+  odometer_km: number | null;
+  work_order_ref: string | null;
+  installation_type: string;
+  coverage_area: string;
+  installation_branch: string | null;
+  installer_name: string | null;
   install_date: string;
   expiry_date: string | null;
   status: string;
@@ -129,7 +138,7 @@ export async function getDealerProfile(dealerId: number): Promise<DealerProfile 
 }
 
 export async function getDealerWarrantyDetail(dealerId: number, serialCode: string): Promise<{ warranty: DealerWarrantyDetail; plan: DealerServicePlan | null; maintenance: DealerMaintenanceItem[]; media: DealerMediaItem[] } | null> {
-  const warranty = await env.DB.prepare(`SELECT id, serial_code, product_model_code, customer_name, customer_phone, customer_email, vehicle_make, vehicle_model, vehicle_plate, install_date, expiry_date, status FROM warranties WHERE dealer_id = ? AND serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
+  const warranty = await env.DB.prepare(`SELECT id, serial_code, product_model_code, customer_name, customer_phone, customer_email, vehicle_make, vehicle_model, vehicle_plate, vehicle_year, vehicle_color, vehicle_vin_last6, odometer_km, work_order_ref, installation_type, coverage_area, installation_branch, installer_name, install_date, expiry_date, status FROM warranties WHERE dealer_id = ? AND serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
   if (!warranty) return null;
   const [plan, maintenance, media] = await Promise.all([
     env.DB.prepare(`
@@ -189,7 +198,10 @@ export async function getAdminMedia(limit = 50): Promise<PortalRecord[]> {
 
 export async function getAdminRecords(type: AdminRecordType, limit = 30): Promise<PortalRecord[]> {
   const queries: Record<AdminRecordType, string> = {
-    warranties: `SELECT w.serial_code AS reference, w.product_model_code AS subject, d.name AS detail, w.install_date AS date, w.status
+    warranties: `SELECT w.serial_code AS reference,
+        COALESCE(w.work_order_ref, w.product_model_code) AS subject,
+        d.name || ' · ' || w.product_model_code || ' · ' || COALESCE(w.installation_branch, 'ไม่ระบุสาขา') AS detail,
+        w.install_date AS date, w.status
       FROM warranties w JOIN dealers d ON d.id = w.dealer_id ORDER BY w.created_at DESC LIMIT ?`,
     dealers: `SELECT d.dealer_code AS reference, d.name AS subject,
         d.province || CASE WHEN account.email IS NULL THEN ' · ยังไม่มีบัญชี' ELSE ' · ' || account.email END AS detail,

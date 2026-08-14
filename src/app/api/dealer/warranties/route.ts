@@ -2,11 +2,11 @@ import { env } from "@/lib/server-env";
 import { resolveProductFromSerial } from "@/lib/serial";
 import { parseServicePlan } from "@/lib/after-sales";
 import { authorizePartnerRequest, unauthorizedResponse } from "../../../../db/partner-access";
-import { enforceSameOrigin, fail, normalizeSerial, PartnerValidationError, requiredText, validIsoDate } from "../../_partner-utils";
+import { enforceSameOrigin, fail, formText, normalizeSerial, PartnerValidationError, requiredText, validIsoDate } from "../../_partner-utils";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_FILES = 5;
-const acceptedTypes = new Map([["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"]]);
+const acceptedTypes = new Map([["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"], ["image/heic", "heic"], ["image/heif", "heif"]]);
 type SerialEligibility = { serial_code: string; model_code: string; serial_status: string; product_status: string | null; warranty_years: number | null; existing_warranty: number };
 type ProductRow = { model_code: string; status: string; warranty_years: number | null };
 
@@ -33,6 +33,12 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const serialCode = normalizeSerial(requiredText(form, "serialCode", " Serial Number", 6, 64));
     const installDate = validIsoDate(requiredText(form, "installDate", "วันที่ติดตั้ง", 10, 10), "วันที่ติดตั้ง");
+    const workOrderRef = (formText(form, "workOrderRef") || `AUTO-${serialCode}`).slice(0, 80);
+    const installationType = formText(form, "installationType") || "full_body";
+    if (!new Set(["full_body", "partial", "color_wrap", "custom"]).has(installationType)) throw new PartnerValidationError("รูปแบบงาน Wrap ไม่ถูกต้อง");
+    const coverageArea = (formText(form, "coverageArea") || "ติดตั้งเต็มคัน").slice(0, 500);
+    const installationBranch = (formText(form, "installationBranch") || "ศูนย์ติดตั้ง").slice(0, 120);
+    const installerName = (formText(form, "installerName") || actor.email).slice(0, 120);
     let servicePlan;
     try {
       servicePlan = parseServicePlan(form);
@@ -86,9 +92,10 @@ export async function POST(request: Request) {
     }
     if (!eligibility) throw new Error("Eligible serial lookup returned no record");
     const photos = form.getAll("photos").filter((value): value is File => value instanceof File && value.size > 0);
+    if (photos.length < 1) throw new PartnerValidationError("กรุณาแนบภาพหลักฐานงานติดตั้งอย่างน้อย 1 ภาพ");
     if (photos.length > MAX_FILES) throw new PartnerValidationError(`แนบภาพได้ไม่เกิน ${MAX_FILES} ไฟล์`);
     for (const photo of photos) {
-      if (!acceptedTypes.has(photo.type) || photo.size > MAX_FILE_BYTES) throw new PartnerValidationError("ภาพต้องเป็น JPG, PNG หรือ WEBP และไม่เกิน 5 MB ต่อไฟล์");
+      if (!acceptedTypes.has(photo.type) || photo.size > MAX_FILE_BYTES) throw new PartnerValidationError("ภาพต้องเป็น JPG, PNG, WEBP, HEIC หรือ HEIF และไม่เกิน 5 MB ต่อไฟล์");
       const extension = acceptedTypes.get(photo.type)!;
       const key = `warranties/${serialCode}/${crypto.randomUUID()}.${extension}`;
       await env.FILES.put(key, photo.stream(), { httpMetadata: { contentType: photo.type }, customMetadata: { serialCode, dealerId: String(actor.dealerId) } });
@@ -98,11 +105,12 @@ export async function POST(request: Request) {
     const statements = [
       env.DB.prepare(`
         INSERT INTO warranties
-          (serial_code, dealer_id, product_model_code, install_date, expiry_date, status)
+          (serial_code, dealer_id, product_model_code, install_date, expiry_date, status,
+           work_order_ref, installation_type, coverage_area, installation_branch, installer_name)
         VALUES (?, ?, ?, ?,
           CASE WHEN CAST(? AS integer) IS NULL THEN NULL ELSE (CAST(? AS date) + make_interval(years => CAST(? AS integer)) - INTERVAL '1 day')::date END,
-          'pending_customer')
-      `).bind(serialCode, actor.dealerId, eligibility.model_code, installDate, eligibility.warranty_years, installDate, eligibility.warranty_years),
+          'pending_customer', ?, ?, ?, ?, ?)
+      `).bind(serialCode, actor.dealerId, eligibility.model_code, installDate, eligibility.warranty_years, installDate, eligibility.warranty_years, workOrderRef, installationType, coverageArea, installationBranch, installerName),
       env.DB.prepare(`
         INSERT INTO warranty_service_plans
           (warranty_id, maintenance_included, maintenance_interval_months, maintenance_visit_limit,
@@ -129,7 +137,7 @@ export async function POST(request: Request) {
       env.DB.prepare(`
         INSERT INTO audit_logs (actor_email, actor_role, action, entity_type, entity_id, detail)
         VALUES (?, 'dealer', 'warranty.create', 'warranty', ?, ?)
-      `).bind(actor.email, serialCode, JSON.stringify({ dealerId: actor.dealerId })),
+      `).bind(actor.email, serialCode, JSON.stringify({ dealerId: actor.dealerId, workOrderRef, installationType, coverageArea, installationBranch, installerName })),
     ];
     const results = await env.DB.batch(statements);
     if (
