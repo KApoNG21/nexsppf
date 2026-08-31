@@ -5,7 +5,7 @@ describe('serial parser', () => {
   it('maps B prefix to BEGIN without storing full URL as identity', () => {
     const parsed = parseSerialCode('https://nexsppf.com/r/B-1196MXY0401175Q');
     expect(parsed).toEqual({ serialCode: 'B-1196MXY0401175Q', modelCode: 'B' });
-    expect(resolveProductFromSerial(parsed.serialCode)).toEqual({ modelCode: 'B', productName: 'BEGIN', warrantyYears: 5, publicMvp: true });
+    expect(resolveProductFromSerial(parsed.serialCode)).toEqual({ modelCode: 'B', databaseModelCode: 'BEGIN', productName: 'BEGIN', warrantyYears: 5, publicMvp: true });
   });
 
   it('maps P prefix to PRIME', () => {
@@ -19,6 +19,7 @@ describe('serial parser', () => {
   it('maps PRO as a public product group', () => {
     expect(resolveProductFromSerial('PRO-1196MXY0401178Q')).toEqual({
       modelCode: 'PRO',
+      databaseModelCode: 'PRO',
       productName: 'PRO',
       warrantyYears: 8,
       publicMvp: true,
@@ -28,6 +29,7 @@ describe('serial parser', () => {
   it('supports optional PRO internal variants grouped under PRO', () => {
     expect(resolveProductFromSerial('R75-1196MXY0401178Q')).toEqual({
       modelCode: 'R75',
+      databaseModelCode: 'PRO',
       productName: 'PRO 7.5',
       warrantyYears: 8,
       publicMvp: false,
@@ -35,6 +37,7 @@ describe('serial parser', () => {
     });
     expect(resolveProductFromSerial('R85-1196MXY0401179Q')).toEqual({
       modelCode: 'R85',
+      databaseModelCode: 'PRO',
       productName: 'PRO 8.5',
       warrantyYears: 8,
       publicMvp: false,

@@ -44,6 +44,7 @@ describe("unified NEXS production system", () => {
     const required = [
       "src/app/api/auth/login/route.ts",
       "src/app/api/auth/logout/route.ts",
+      "src/app/api/auth/change-password/route.ts",
       "src/app/api/dealer/warranties/route.ts",
       "src/app/api/dealer/maintenance/route.ts",
       "src/app/api/dealer/profile/route.ts",
@@ -57,6 +58,23 @@ describe("unified NEXS production system", () => {
       "src/app/api/partner/media/[id]/route.ts",
     ];
     await Promise.all(required.map((path) => readFile(path, "utf8")));
+  });
+
+  it("supports Admin-managed Dealer accounts and forced first-login password changes", async () => {
+    const [migration, dealerApi, loginApi, changeApi, adminUi] = await Promise.all([
+      readFile("migrations/postgres/0003_partner_account_management.sql", "utf8"),
+      readFile("src/app/api/admin/dealers/route.ts", "utf8"),
+      readFile("src/app/api/auth/login/route.ts", "utf8"),
+      readFile("src/app/api/auth/change-password/route.ts", "utf8"),
+      readFile("src/app/client-ui.tsx", "utf8"),
+    ]);
+    expect(migration).toContain("must_change_password");
+    expect(dealerApi).toContain("create_with_account");
+    expect(dealerApi).toContain("reset_password");
+    expect(dealerApi).toContain("set_account_status");
+    expect(loginApi).toContain("/change-password?return_to=");
+    expect(changeApi).toContain("account.password_change");
+    expect(adminUi).toContain("สร้าง Dealer พร้อมบัญชี Login");
   });
 
   it("signs, verifies, expires, and rejects tampered partner sessions", () => {
@@ -84,10 +102,14 @@ describe("unified NEXS production system", () => {
       readFile("src/app/client-ui.tsx", "utf8"),
     ]);
     expect(publicCard).toContain("/dealer/register-warranty?serial=");
-    expect(publicCard).toContain("ลูกค้าไม่ต้องเปิดใช้งานบัตรด้วยตนเอง");
+    expect(publicCard).toContain("สำหรับศูนย์ติดตั้งเท่านั้น");
+    expect(publicCard).toContain("ติดต่อศูนย์ติดตั้ง / NEXS");
+    expect(publicCard).toContain("/warranty/complete?serial=");
+    expect(publicCard).toContain("/dealer/maintenance?serial=");
     expect(dealerPage).toContain("initialSerial={initialSerial}");
     expect(dealerPage).toContain("?serial=${encodeURIComponent(initialSerial)}");
     expect(dealerForm).toContain("defaultValue={initialSerial}");
+    expect(dealerForm).toContain('kind === "customer-complete"');
   });
 
   it("stores private evidence outside public assets and blocks traversal", async () => {

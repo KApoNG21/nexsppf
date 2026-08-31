@@ -8,12 +8,14 @@ import {
   sessionMaxAge,
 } from "@/lib/auth-session";
 import { enforceSameOrigin, publicRequestUrl } from "../../_partner-utils";
+import { resolvePartnerLoginIdentifier } from "@/lib/partner-login";
 
 type AccountRow = {
   email: string;
   display_name: string;
   password_hash: string;
   status: string;
+  must_change_password: boolean;
 };
 
 export async function POST(request: Request) {
@@ -21,14 +23,14 @@ export async function POST(request: Request) {
   if (originError) return originError;
 
   const form = await request.formData();
-  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const email = resolvePartnerLoginIdentifier(String(form.get("email") ?? ""));
   const password = String(form.get("password") ?? "");
   const requestedReturnTo = String(form.get("return_to") ?? "");
   if (!email || password.length < 8) return redirectWithError(request, requestedReturnTo);
   if (!await allowLoginAttempt(request, email)) return redirectWithError(request, requestedReturnTo);
 
   const account = await env.DB.prepare(`
-    SELECT email, display_name, password_hash, status
+    SELECT email, display_name, password_hash, status, must_change_password
     FROM auth_accounts
     WHERE lower(email) = ?
     LIMIT 1
@@ -39,9 +41,12 @@ export async function POST(request: Request) {
   await env.DB.prepare("UPDATE auth_accounts SET last_login_at = CURRENT_TIMESTAMP WHERE lower(email) = ?")
     .bind(email)
     .run();
-  const returnTo = requestedReturnTo
+  const intendedReturnTo = requestedReturnTo
     ? safeReturnPath(requestedReturnTo, "/dealer")
     : await defaultPartnerPath(email);
+  const returnTo = account.must_change_password
+    ? `/change-password?return_to=${encodeURIComponent(intendedReturnTo)}`
+    : intendedReturnTo;
 
   const response = NextResponse.redirect(publicRequestUrl(request, returnTo), 303);
   response.cookies.set({

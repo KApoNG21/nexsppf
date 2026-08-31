@@ -1,5 +1,6 @@
 export type ProductConfig = {
   modelCode: string;
+  databaseModelCode: string;
   productName: string;
   warrantyYears: number;
   publicMvp: boolean;
@@ -12,12 +13,12 @@ export type ParsedSerial = {
 };
 
 export const PRODUCT_CONFIG: Record<string, ProductConfig> = {
-  B: { modelCode: 'B', productName: 'BEGIN', warrantyYears: 5, publicMvp: true },
-  P: { modelCode: 'P', productName: 'PRIME', warrantyYears: 6, publicMvp: true },
-  PRO: { modelCode: 'PRO', productName: 'PRO', warrantyYears: 8, publicMvp: true },
-  R75: { modelCode: 'R75', productName: 'PRO 7.5', warrantyYears: 8, publicMvp: false, parentModelCode: 'PRO' },
-  R85: { modelCode: 'R85', productName: 'PRO 8.5', warrantyYears: 8, publicMvp: false, parentModelCode: 'PRO' },
-  U: { modelCode: 'U', productName: 'ULTIMATE', warrantyYears: 9, publicMvp: true },
+  B: { modelCode: 'B', databaseModelCode: 'BEGIN', productName: 'BEGIN', warrantyYears: 5, publicMvp: true },
+  P: { modelCode: 'P', databaseModelCode: 'PRIME', productName: 'PRIME', warrantyYears: 6, publicMvp: true },
+  PRO: { modelCode: 'PRO', databaseModelCode: 'PRO', productName: 'PRO', warrantyYears: 8, publicMvp: true },
+  R75: { modelCode: 'R75', databaseModelCode: 'PRO', productName: 'PRO 7.5', warrantyYears: 8, publicMvp: false, parentModelCode: 'PRO' },
+  R85: { modelCode: 'R85', databaseModelCode: 'PRO', productName: 'PRO 8.5', warrantyYears: 8, publicMvp: false, parentModelCode: 'PRO' },
+  U: { modelCode: 'U', databaseModelCode: 'ULTIMATE', productName: 'ULTIMATE', warrantyYears: 9, publicMvp: true },
 };
 
 const SERIAL_PATTERN = /^([A-Z0-9]+)-[A-Z0-9]+$/;

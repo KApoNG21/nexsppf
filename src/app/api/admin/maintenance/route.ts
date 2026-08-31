@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest, unauthorizedResponse } from "../../../../db/partner-access";
+import { authorizeAdminRequest, unauthorizedResponse } from "../../../../db/partner-access";
 import { enforceSameOrigin, fail, formText, normalizeSerial, PartnerValidationError, requiredText, validIsoDate } from "../../_partner-utils";
 
 type WarrantyRow = { id: number; dealer_id: number };
@@ -10,7 +10,7 @@ const acceptedTypes = new Map([["image/jpeg", "jpg"], ["image/png", "png"], ["im
 export async function POST(request: Request) {
   const originFailure = enforceSameOrigin(request);
   if (originFailure) return originFailure;
-  const actor = await authorizePartnerRequest(request, "admin");
+  const actor = await authorizeAdminRequest(request, "warranty.manage");
   if (!actor) return unauthorizedResponse();
   const uploadedKeys: string[] = [];
   try {

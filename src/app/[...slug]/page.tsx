@@ -73,7 +73,7 @@ function CollectionHero({ type }: { type: "all" | "clear" | "matte" | "color" })
 }
 
 function ComparisonTable() {
-  return <div className="comparison-table"><div className="table-head"><span /><b>Begin<small>Entry</small></b><b>Prime<small>Core</small></b><b>Pro<small>Performance</small></b><b>Ultimate<small>Flagship</small></b></div>{[["ประกันสินค้า", "4 ปี", "7 ปี", "8 ปี", "9 ปี"], ["ประกันลอก", "3 ปี", "4 ปี", "5 ปี", "7 ปี"], ["Finish", "High Gloss", "High Gloss", "Premium Gloss", "Flagship Finish"], ["Best for", "Daily", "Everyday+", "Enthusiast", "Premium"], ["Digital Card", "Included", "Included", "Included", "Included"]].map((row) => <div className="table-row" key={row[0]}>{row.map((cell, i) => i === 0 ? <b key={cell}>{cell}</b> : <span key={`${cell}-${i}`}>{cell}</span>)}</div>)}</div>;
+  return <div className="comparison-table"><div className="table-head"><span /><b>Begin<small>Entry</small></b><b>Prime<small>Core</small></b><b>Pro<small>Performance</small></b><b>Ultimate<small>Flagship</small></b></div>{[["ระยะรับประกัน", "5 ปี", "6 ปี", "8 ปี", "9 ปี"], ["Finish", "High Gloss", "High Gloss", "Premium Gloss", "Flagship Finish"], ["Best for", "Daily", "Everyday+", "Enthusiast", "Premium"], ["Digital Card", "Included", "Included", "Included", "Included"]].map((row) => <div className="table-row" key={row[0]}>{row.map((cell, i) => i === 0 ? <b key={cell}>{cell}</b> : <span key={`${cell}-${i}`}>{cell}</span>)}</div>)}</div>;
 }
 
 function CollectionSummary({ title, copy, href, tone }: { title: string; copy: string; href: string; tone: string }) {
@@ -230,7 +230,7 @@ function PolicyPage({ type }: { type: "privacy" | "warranty" | "terms" }) {
   ];
   const warranty = [
     ["เงื่อนไขเบื้องต้น", "สิทธิ์ใช้ได้กับผลิตภัณฑ์แท้ที่มี Serial ถูกต้อง ติดตั้งโดยศูนย์ที่ได้รับการรับรอง และลงทะเบียน Digital Warranty สำเร็จ ระยะเวลาเริ่มจากวันที่ติดตั้งและยึดข้อมูลบนบัตรดิจิทัลของ Serial นั้น"],
-    ["ระยะรับประกัน Clear PPF", "BEGIN: สินค้า 4 ปี / การลอก 3 ปี · PRIME: สินค้า 7 ปี / การลอก 4 ปี · PRO: สินค้า 8 ปี / การลอก 5 ปี · ULTIMATE: สินค้า 9 ปี / การลอก 7 ปี รุ่น Matte, Color และสินค้าเฉพาะให้ยึดเงื่อนไขบนบัตรและเอกสารรุ่นที่ได้รับขณะติดตั้ง"],
+    ["ระยะรับประกัน Clear PPF", "BEGIN 5 ปี · PRIME 6 ปี · PRO 8 ปี · ULTIMATE 9 ปี โดยวันเริ่มและวันหมดอายุจะแสดงบนบัตรรับประกันดิจิทัลหลัง Dealer เปิดใช้งาน รุ่น Matte, Color และสินค้าเฉพาะให้ยึดเงื่อนไขบนบัตรและเอกสารรุ่นที่ได้รับขณะติดตั้ง"],
     ["สิ่งที่ครอบคลุม", "ครอบคลุมความผิดปกติของวัสดุจากกระบวนการผลิต เช่น การเหลืองผิดปกติ การแตกร้าวหรือกรอบ และการแยกชั้น รวมถึงการลอกตามระยะของรุ่น ทั้งนี้ต้องผ่านการตรวจสอบสภาพและประวัติการติดตั้ง"],
     ["ข้อยกเว้น", "ไม่ครอบคลุมความเสียหายจากอุบัติเหตุ หินกระเด็น รอยขีดข่วนลึก การชน ไฟไหม้ น้ำท่วม สารเคมีหรือการดูแลที่ไม่เหมาะสม การดัดแปลง/ซ่อมโดยไม่ได้รับอนุญาต สีเดิมหรือสีซ่อมที่มีปัญหา การติดตั้งโดยร้านที่ไม่ได้รับรอง และการสึกหรอตามปกติ"],
     ["การแจ้งและตรวจสอบ", "แจ้งผ่าน Warranty Support พร้อม Serial ช่องทางติดต่อ รายละเอียด และภาพประกอบ จากนั้นนำรถเข้าตรวจที่ศูนย์ที่ได้รับการรับรองเมื่อมีการนัดหมาย NEXS จะตรวจข้อมูลผลิตภัณฑ์ งานติดตั้ง สภาพรถ และข้อยกเว้นก่อนแจ้งผล"],

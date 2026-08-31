@@ -17,6 +17,7 @@ type QueryExecutor = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 
 const TABLES_WITH_NUMERIC_ID = new Set([
   "account_roles",
+  "account_role_permissions",
   "admin_policies",
   "audit_logs",
   "contact_requests",
@@ -27,6 +28,7 @@ const TABLES_WITH_NUMERIC_ID = new Set([
   "product_series",
   "registration_exceptions",
   "serials",
+  "stock_color_products",
   "support_requests",
   "warranties",
 ]);

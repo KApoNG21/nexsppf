@@ -19,18 +19,45 @@ export type DealerWarrantyDetail = {
   id: number;
   serial_code: string;
   product_model_code: string;
-  customer_name: string;
-  customer_phone: string;
+  customer_name: string | null;
+  customer_phone: string | null;
   customer_email: string | null;
-  vehicle_make: string;
-  vehicle_model: string;
-  vehicle_plate: string;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_plate: string | null;
+  vehicle_year: number | null;
+  vehicle_color: string | null;
+  vehicle_vin_last6: string | null;
+  odometer_km: number | null;
+  work_order_ref: string | null;
+  installation_type: string;
+  coverage_area: string;
+  installation_branch: string | null;
+  installer_name: string | null;
   install_date: string;
   expiry_date: string | null;
+  warranty_years: number | null;
   status: string;
 };
 
-export type DealerMaintenanceItem = { id: number; reference_code: string; maintenance_date: string; maintenance_type: string; performed_by: string | null; result_status: string; note: string | null };
+export type DealerMaintenanceItem = { id: number; reference_code: string; maintenance_date: string; maintenance_type: string; performed_by: string | null; result_status: string; note: string | null; next_recommended_date: string | null; pieces_count: number; service_scope: string | null };
+export type DealerServicePlan = {
+  maintenance_included: boolean;
+  maintenance_interval_months: number | null;
+  maintenance_visit_limit: number | null;
+  maintenance_used: number;
+  claim_included: boolean;
+  claim_piece_limit: number | null;
+  claim_used: number;
+  rewrap_included: boolean;
+  rewrap_piece_limit: number | null;
+  rewrap_used: number;
+  plan_note: string | null;
+  installation_warranty_terms: string | null;
+  removal_warranty_terms: string | null;
+  next_recommended_date_override: string | null;
+  next_recommended_date: string | null;
+};
 export type DealerMediaItem = { id: number; original_name: string; content_type: string; size_bytes: number };
 export type DealerProfile = {
   dealer_code: string;
@@ -53,7 +80,20 @@ async function count(sql: string, ...bindings: unknown[]): Promise<number> {
 export async function getDealerStats(dealerId: number): Promise<PortalStats> {
   const [active, maintenanceDue, openSupport, total] = await Promise.all([
     count("SELECT COUNT(*) AS count FROM warranties WHERE dealer_id = ? AND status = 'active'", dealerId),
-    count("SELECT COUNT(*) AS count FROM maintenance_records WHERE dealer_id = ? AND next_recommended_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'", dealerId),
+    count(`
+      SELECT COUNT(*) AS count
+      FROM warranties w
+      JOIN warranty_service_plans p ON p.warranty_id = w.id AND p.maintenance_included
+      WHERE w.dealer_id = ? AND w.status IN ('active', 'pending_customer')
+        AND COALESCE(
+          p.next_recommended_date_override,
+          (SELECT m.next_recommended_date FROM maintenance_records m
+           WHERE m.warranty_id = w.id AND m.next_recommended_date IS NOT NULL
+           ORDER BY m.maintenance_date DESC, m.id DESC LIMIT 1),
+          (w.install_date + make_interval(months => p.maintenance_interval_months))::date
+        ) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+        AND (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = w.id AND m.maintenance_type = 'maintenance') < p.maintenance_visit_limit
+    `, dealerId),
     count(`SELECT COUNT(*) AS count FROM (
       SELECT id FROM support_requests WHERE assigned_dealer_id = ? AND status NOT IN ('closed','rejected')
       UNION ALL
@@ -67,7 +107,8 @@ export async function getDealerStats(dealerId: number): Promise<PortalStats> {
 export async function getDealerWarranties(dealerId: number, limit = 20): Promise<PortalRecord[]> {
   const result = await env.DB.prepare(`
     SELECT w.serial_code AS reference, w.product_model_code AS subject,
-      w.vehicle_make || ' ' || w.vehicle_model AS detail, w.install_date AS date, w.status
+      COALESCE(NULLIF(TRIM(COALESCE(w.vehicle_make, '') || ' ' || COALESCE(w.vehicle_model, '')), ''), 'รอลูกค้ากรอกข้อมูล') AS detail,
+      w.install_date AS date, w.status
     FROM warranties w
     WHERE w.dealer_id = ?
     ORDER BY w.created_at DESC
@@ -101,14 +142,28 @@ export async function getDealerProfile(dealerId: number): Promise<DealerProfile 
   `).bind(dealerId).first<DealerProfile>();
 }
 
-export async function getDealerWarrantyDetail(dealerId: number, serialCode: string): Promise<{ warranty: DealerWarrantyDetail; maintenance: DealerMaintenanceItem[]; media: DealerMediaItem[] } | null> {
-  const warranty = await env.DB.prepare(`SELECT id, serial_code, product_model_code, customer_name, customer_phone, customer_email, vehicle_make, vehicle_model, vehicle_plate, install_date, expiry_date, status FROM warranties WHERE dealer_id = ? AND serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
+export async function getDealerWarrantyDetail(dealerId: number, serialCode: string): Promise<{ warranty: DealerWarrantyDetail; plan: DealerServicePlan | null; maintenance: DealerMaintenanceItem[]; media: DealerMediaItem[] } | null> {
+  const warranty = await env.DB.prepare(`SELECT w.id, w.serial_code, w.product_model_code, w.customer_name, w.customer_phone, w.customer_email, w.vehicle_make, w.vehicle_model, w.vehicle_plate, w.vehicle_year, w.vehicle_color, w.vehicle_vin_last6, w.odometer_km, w.work_order_ref, w.installation_type, w.coverage_area, w.installation_branch, w.installer_name, w.install_date, w.expiry_date, ps.warranty_years, w.status FROM warranties w LEFT JOIN product_series ps ON ps.model_code = w.product_model_code WHERE w.dealer_id = ? AND w.serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
   if (!warranty) return null;
-  const [maintenance, media] = await Promise.all([
-    env.DB.prepare(`SELECT id, reference_code, maintenance_date, maintenance_type, performed_by, result_status, note FROM maintenance_records WHERE warranty_id = ? AND dealer_id = ? ORDER BY maintenance_date DESC`).bind(warranty.id, dealerId).all<DealerMaintenanceItem>(),
+  const [plan, maintenance, media] = await Promise.all([
+    env.DB.prepare(`
+      SELECT p.maintenance_included, p.maintenance_interval_months, p.maintenance_visit_limit,
+        p.claim_included, p.claim_piece_limit, p.rewrap_included, p.rewrap_piece_limit, p.plan_note,
+        p.installation_warranty_terms, p.removal_warranty_terms, p.next_recommended_date_override,
+        (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'maintenance') AS maintenance_used,
+        (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'claim') AS claim_used,
+        (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'rewrap') AS rewrap_used,
+        COALESCE(
+          p.next_recommended_date_override,
+          (SELECT m.next_recommended_date FROM maintenance_records m WHERE m.warranty_id = ? AND m.next_recommended_date IS NOT NULL ORDER BY m.maintenance_date DESC, m.id DESC LIMIT 1),
+          CASE WHEN p.maintenance_included THEN (?::date + make_interval(months => p.maintenance_interval_months))::date ELSE NULL END
+        ) AS next_recommended_date
+      FROM warranty_service_plans p WHERE p.warranty_id = ?
+    `).bind(warranty.id, warranty.id, warranty.id, warranty.id, warranty.install_date, warranty.id).first<DealerServicePlan>(),
+    env.DB.prepare(`SELECT id, reference_code, maintenance_date, maintenance_type, performed_by, result_status, note, next_recommended_date, pieces_count, service_scope FROM maintenance_records WHERE warranty_id = ? AND dealer_id = ? ORDER BY maintenance_date DESC, id DESC`).bind(warranty.id, dealerId).all<DealerMaintenanceItem>(),
     env.DB.prepare(`SELECT id, original_name, content_type, size_bytes FROM media_assets WHERE (owner_type = 'warranty' AND owner_reference = ?) OR (owner_type = 'maintenance' AND owner_reference IN (SELECT reference_code FROM maintenance_records WHERE warranty_id = ? AND dealer_id = ?)) ORDER BY created_at DESC`).bind(serialCode, warranty.id, dealerId).all<DealerMediaItem>(),
   ]);
-  return { warranty, maintenance: maintenance.results ?? [], media: media.results ?? [] };
+  return { warranty, plan: plan ?? null, maintenance: maintenance.results ?? [], media: media.results ?? [] };
 }
 
 export async function getAdminStats(): Promise<PortalStats> {
@@ -150,10 +205,31 @@ export async function getAdminMedia(limit = 50): Promise<PortalRecord[]> {
 
 export async function getAdminRecords(type: AdminRecordType, limit = 30): Promise<PortalRecord[]> {
   const queries: Record<AdminRecordType, string> = {
-    warranties: `SELECT w.serial_code AS reference, w.product_model_code AS subject, d.name AS detail, w.install_date AS date, w.status
+    warranties: `SELECT w.serial_code AS reference,
+        COALESCE(w.work_order_ref, w.product_model_code) AS subject,
+        d.name || ' · ' || w.product_model_code || ' · ' || COALESCE(w.installation_branch, 'ไม่ระบุสาขา') AS detail,
+        w.install_date AS date, w.status
       FROM warranties w JOIN dealers d ON d.id = w.dealer_id ORDER BY w.created_at DESC LIMIT ?`,
-    dealers: `SELECT dealer_code AS reference, name AS subject, province AS detail, created_at AS date, status
-      FROM dealers ORDER BY created_at DESC LIMIT ?`,
+    dealers: `SELECT d.dealer_code AS reference, d.name AS subject,
+        d.province || CASE WHEN account.email IS NULL THEN ' · ยังไม่มีบัญชี' ELSE ' · ' || account.email END AS detail,
+        d.created_at AS date,
+        CASE
+          WHEN d.status <> 'active' THEN d.status
+          WHEN account.email IS NULL THEN 'no-account'
+          WHEN account.account_status = 'suspended' OR account.role_status = 'suspended' THEN 'account-suspended'
+          WHEN account.must_change_password THEN 'password-change'
+          ELSE 'active'
+        END AS status
+      FROM dealers d
+      LEFT JOIN LATERAL (
+        SELECT ar.email, ar.status AS role_status, aa.status AS account_status, aa.must_change_password
+        FROM account_roles ar
+        LEFT JOIN auth_accounts aa ON lower(aa.email) = lower(ar.email)
+        WHERE ar.dealer_id = d.id AND ar.role = 'dealer'
+        ORDER BY ar.created_at DESC
+        LIMIT 1
+      ) account ON true
+      ORDER BY d.created_at DESC LIMIT ?`,
     maintenance: `SELECT COALESCE(m.reference_code, 'MNT-' || m.id) AS reference, w.serial_code AS subject, m.maintenance_type || CASE WHEN m.performed_by IS NULL THEN '' ELSE ' · ' || m.performed_by END AS detail, m.maintenance_date AS date, m.result_status AS status
       FROM maintenance_records m JOIN warranties w ON w.id = m.warranty_id ORDER BY m.created_at DESC LIMIT ?`,
     support: `SELECT reference_code AS reference, serial_code AS subject,

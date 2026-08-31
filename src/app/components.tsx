@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { AdminPermission } from "../db/admin-permissions";
 import { navItems, type ProductTier } from "./content";
 
 export function Logo({ inverse = false, lockup = false }: { inverse?: boolean; lockup?: boolean }) {
@@ -115,20 +116,48 @@ export function TrustStrip() {
   );
 }
 
-export function DashboardShell({ role, title, children, active = "dashboard" }: { role: "Dealer" | "Admin"; title: string; children: ReactNode; active?: string }) {
-  const dealerLinks = [["dashboard", "ภาพรวม", "/dealer"], ["register", "ลงทะเบียนรับประกัน", "/dealer/register-warranty"], ["warranties", "บัตรรับประกัน", "/dealer/warranties"], ["maintenance", "บำรุงรักษา", "/dealer/maintenance"], ["requests", "งานที่ได้รับมอบหมาย", "/dealer/requests"], ["profile", "ข้อมูลร้าน", "/dealer/profile"]];
-  const adminLinks = [["dashboard", "ภาพรวม", "/admin"], ["serials", "Serial / Batch", "/admin/serials"], ["warranties", "บัตรรับประกัน", "/admin/warranties"], ["exceptions", "Registration Exceptions", "/admin/registration-exceptions"], ["dealers", "Dealer", "/admin/dealers"], ["products", "สินค้า / Policy", "/admin/products"], ["maintenance", "Maintenance", "/admin/maintenance"], ["media", "Private Media", "/admin/media"], ["contact", "Contact Requests", "/admin/contact-requests"], ["support", "Support Requests", "/admin/support-requests"], ["inspection", "Inspection", "/admin/inspection-requests"], ["audit", "Audit Log", "/admin/audit-log"], ["reports", "Reports", "/admin/reports"], ["policy", "Policy", "/admin/policy"]];
-  const links = role === "Dealer" ? dealerLinks : adminLinks;
+export function DashboardShell({ role, title, children, active = "dashboard", adminPermissions = [] }: { role: "Dealer" | "Admin"; title: string; children: ReactNode; active?: string; adminPermissions?: readonly AdminPermission[] }) {
+  type DashboardLink = { key: string; label: string; href: string; permission?: AdminPermission };
+  const dealerLinks: DashboardLink[] = [
+    { key: "dashboard", label: "ภาพรวม", href: "/dealer" },
+    { key: "register", label: "เปิดใช้งาน QR", href: "/dealer/register-warranty" },
+    { key: "customer-registration", label: "ช่วยกรอกข้อมูลลูกค้า", href: "/dealer/customer-registration" },
+    { key: "warranties", label: "บัตรรับประกัน", href: "/dealer/warranties" },
+    { key: "maintenance", label: "บำรุงรักษา", href: "/dealer/maintenance" },
+    { key: "requests", label: "งานที่ได้รับมอบหมาย", href: "/dealer/requests" },
+    { key: "profile", label: "ข้อมูลร้าน", href: "/dealer/profile" },
+    { key: "password", label: "เปลี่ยนรหัสผ่าน", href: "/change-password?return_to=/dealer" },
+  ];
+  const adminLinks: DashboardLink[] = [
+    { key: "dashboard", label: "ภาพรวม", href: "/admin" },
+    { key: "stock", label: "ระบบสต็อกฟิล์ม", href: "/admin/stock", permission: "stock.view" },
+    { key: "serials", label: "Serial / Batch", href: "/admin/serials", permission: "serial.manage" },
+    { key: "warranties", label: "บัตรรับประกัน", href: "/admin/warranties", permission: "warranty.view" },
+    { key: "exceptions", label: "Registration Exceptions", href: "/admin/registration-exceptions", permission: "warranty.manage" },
+    { key: "dealers", label: "Dealer", href: "/admin/dealers", permission: "dealer.manage" },
+    { key: "products", label: "สินค้า / Policy", href: "/admin/products", permission: "catalog.manage" },
+    { key: "maintenance", label: "Maintenance", href: "/admin/maintenance", permission: "warranty.view" },
+    { key: "media", label: "Private Media", href: "/admin/media", permission: "warranty.view" },
+    { key: "contact", label: "Contact Requests", href: "/admin/contact-requests", permission: "requests.manage" },
+    { key: "support", label: "Support Requests", href: "/admin/support-requests", permission: "requests.manage" },
+    { key: "inspection", label: "Inspection", href: "/admin/inspection-requests", permission: "requests.manage" },
+    { key: "users", label: "ผู้ใช้และสิทธิ์", href: "/admin/users", permission: "access.manage" },
+    { key: "audit", label: "Audit Log", href: "/admin/audit-log", permission: "audit.view" },
+    { key: "reports", label: "Reports", href: "/admin/reports", permission: "reports.export" },
+    { key: "policy", label: "Policy", href: "/admin/policy", permission: "catalog.manage" },
+    { key: "password", label: "เปลี่ยนรหัสผ่าน", href: "/change-password?return_to=/admin" },
+  ];
+  const links = role === "Dealer" ? dealerLinks : adminLinks.filter((link) => !link.permission || adminPermissions.includes(link.permission));
   return (
     <div className="dashboard-page">
       <aside className="dashboard-sidebar">
         <Link href="/" className="dashboard-logo"><Logo inverse /></Link>
         <p className="dashboard-role">{role} Workspace</p>
-        <nav>{links.map(([key, label, href]) => <Link className={active === key ? "active" : ""} key={href} href={href}>{label}</Link>)}</nav>
+        <nav>{links.map(({ key, label, href }) => <Link className={active === key ? "active" : ""} key={href} href={href}>{label}</Link>)}</nav>
         <Link className="dashboard-exit" href="/">← กลับเว็บไซต์</Link>
       </aside>
       <main className="dashboard-main">
-        <header className="dashboard-header"><div><p>NEXS Digital Warranty</p><h1>{title}</h1></div><span className="demo-badge">Protected workspace · Sign in with ChatGPT + role access</span></header>
+        <header className="dashboard-header"><div><p>{role === "Admin" ? "NEXS Operations" : "NEXS Digital Warranty"}</p><h1>{title}</h1></div><span className="demo-badge">ระบบปลอดภัย · จำกัดข้อมูลตามบัญชีและสิทธิ์</span></header>
         {children}
       </main>
     </div>
@@ -140,6 +169,25 @@ export function StatCard({ label, value, note }: { label: string; value: string;
 }
 
 export function StatusPill({ status }: { status: string }) {
-  const labels: Record<string, string> = { active: "ACTIVE", pending: "รอตรวจสอบ", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่ลงทะเบียน", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
+  const labels: Record<string, string> = { active: "พร้อมใช้งาน", pending: "รอตรวจสอบ", "pending-customer": "รอลูกค้ากรอกข้อมูล", "profile-required": "รอลูกค้ากรอกข้อมูล", expired: "หมดอายุ", "under-review": "อยู่ระหว่างตรวจสอบ", "not-registered": "ยังไม่เปิดใช้งาน", "no-account": "ยังไม่มีบัญชี", "password-change": "รอเปลี่ยนรหัส", "account-suspended": "บัญชีถูกระงับ", "service-unavailable": "ระบบไม่พร้อม", invalid: "ไม่พบข้อมูล" };
   return <span className={`status-pill status-${status}`}>{labels[status] ?? status}</span>;
+}
+
+export function WarrantyJourney({ current }: { current: "dealer" | "customer" | "active" }) {
+  const steps = [
+    ["dealer", "01", "ศูนย์เปิดงาน Wrap", "บันทึกขอบเขตและหลักฐาน"],
+    ["customer", "02", "ลูกค้ายืนยันรถ", "ทำครั้งเดียว"],
+    ["active", "03", "บัตรพร้อมใช้งาน", "ดูสิทธิ์และประวัติบริการ"],
+  ] as const;
+  const currentIndex = steps.findIndex(([key]) => key === current);
+  return (
+    <section className="warranty-journey" aria-label="ขั้นตอนเปิดบัตรรับประกัน">
+      {steps.map(([key, number, title, copy], index) => (
+        <div className={index < currentIndex ? "done" : index === currentIndex ? "current" : ""} key={key}>
+          <span>{index < currentIndex ? "✓" : number}</span>
+          <p><b>{title}</b><small>{copy}</small></p>
+        </div>
+      ))}
+    </section>
+  );
 }

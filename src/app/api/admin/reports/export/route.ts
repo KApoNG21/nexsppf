@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest, unauthorizedResponse } from "../../../../../db/partner-access";
+import { authorizeAdminRequest, unauthorizedResponse } from "../../../../../db/partner-access";
 
 const reports = {
   serials: {
@@ -10,14 +10,23 @@ const reports = {
   warranties: {
     filename: "nexs-warranties.csv",
     sql: `SELECT w.serial_code, w.product_model_code, d.dealer_code, d.name AS dealer_name,
-      w.vehicle_make, w.vehicle_model, w.install_date, w.expiry_date, w.status, w.created_at
-      FROM warranties w JOIN dealers d ON d.id = w.dealer_id
+      w.work_order_ref, w.installation_type, w.coverage_area, w.installation_branch,
+      w.installer_name, w.vehicle_make, w.vehicle_model, w.vehicle_year, w.vehicle_color,
+      w.vehicle_plate, w.vehicle_vin_last6, w.odometer_km,
+      w.install_date, w.expiry_date, w.status,
+      p.maintenance_included, p.maintenance_interval_months, p.maintenance_visit_limit,
+      p.claim_included, p.claim_piece_limit, p.rewrap_included, p.rewrap_piece_limit,
+      p.plan_note, p.installation_warranty_terms, p.removal_warranty_terms, w.created_at
+      FROM warranties w
+      JOIN dealers d ON d.id = w.dealer_id
+      LEFT JOIN warranty_service_plans p ON p.warranty_id = w.id
       ORDER BY w.created_at DESC, w.id DESC`,
   },
   maintenance: {
     filename: "nexs-maintenance.csv",
     sql: `SELECT m.reference_code, w.serial_code, d.dealer_code, m.maintenance_date,
-      m.maintenance_type, m.performed_by, m.result_status, m.next_recommended_date, m.created_at
+      m.maintenance_type, m.pieces_count, m.service_scope, m.performed_by, m.result_status,
+      m.next_recommended_date, m.note, m.created_at
       FROM maintenance_records m
       JOIN warranties w ON w.id = m.warranty_id
       JOIN dealers d ON d.id = m.dealer_id
@@ -48,7 +57,7 @@ type ReportKey = keyof typeof reports;
 type CsvRow = Record<string, unknown>;
 
 export async function GET(request: Request) {
-  const actor = await authorizePartnerRequest(request, "admin");
+  const actor = await authorizeAdminRequest(request, "reports.export");
   if (!actor) return unauthorizedResponse();
 
   const reportKey = new URL(request.url).searchParams.get("report") as ReportKey | null;

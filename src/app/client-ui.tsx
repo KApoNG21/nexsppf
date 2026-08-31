@@ -15,6 +15,36 @@ type DealerProfileInput = {
   status: string;
 };
 
+type CustomerRegistrationInput = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleYear: string;
+  vehicleColor: string;
+  vehiclePlate: string;
+  vehicleVinLast6: string;
+  odometerKm: string;
+};
+
+type DealerServicePlanInput = {
+  maintenance_included: boolean;
+  maintenance_interval_months: number | null;
+  maintenance_visit_limit: number | null;
+  maintenance_used: number;
+  claim_included: boolean;
+  claim_piece_limit: number | null;
+  claim_used: number;
+  rewrap_included: boolean;
+  rewrap_piece_limit: number | null;
+  rewrap_used: number;
+  plan_note: string | null;
+  installation_warranty_terms: string | null;
+  removal_warranty_terms: string | null;
+  next_recommended_date: string | null;
+};
+
 export function WarrantyLookup({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [serial, setSerial] = useState("");
@@ -44,17 +74,120 @@ export function WarrantyLookup({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact" | "support" | "inspection" | "dealer-register" | "maintenance" | "serial-import" | "policy" | "profile"; initialSerial?: string; profile?: DealerProfileInput }) {
+export function DealerServicePlanEditor({ serial, plan }: { serial: string; plan: DealerServicePlanInput | null }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [maintenanceIncluded, setMaintenanceIncluded] = useState(Boolean(plan?.maintenance_included));
+  const [claimIncluded, setClaimIncluded] = useState(Boolean(plan?.claim_included));
+  const [rewrapIncluded, setRewrapIncluded] = useState(Boolean(plan?.rewrap_included));
+
+  useEffect(() => {
+    setMaintenanceIncluded(Boolean(plan?.maintenance_included));
+    setClaimIncluded(Boolean(plan?.claim_included));
+    setRewrapIncluded(Boolean(plan?.rewrap_included));
+  }, [plan?.maintenance_included, plan?.claim_included, plan?.rewrap_included]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/dealer/service-plan", { method: "POST", body: new FormData(event.currentTarget) });
+      const result = await response.json() as { error?: string; serialCode?: string; status?: string };
+      if (!response.ok || result.status !== "updated") throw new Error(result.error || "ไม่สามารถบันทึกสิทธิ์บริการได้");
+      setOpen(false);
+      setMessage("บันทึกสิทธิ์บริการของร้านแล้ว");
+      router.refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "ไม่สามารถบันทึกสิทธิ์บริการได้");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const benefits = [
+    { key: "maintenance", label: "Maintenance", included: Boolean(plan?.maintenance_included), used: Number(plan?.maintenance_used ?? 0), limit: plan?.maintenance_visit_limit ?? null, unit: "ครั้ง", detail: plan?.maintenance_interval_months ? `ทุก ${plan.maintenance_interval_months} เดือน${plan.next_recommended_date ? ` · ถัดไป ${formatClientDate(plan.next_recommended_date)}` : ""}` : "" },
+    { key: "claim", label: "เคลม", included: Boolean(plan?.claim_included), used: Number(plan?.claim_used ?? 0), limit: plan?.claim_piece_limit ?? null, unit: "ชิ้น", detail: "" },
+    { key: "rewrap", label: "Re-wrap", included: Boolean(plan?.rewrap_included), used: Number(plan?.rewrap_used ?? 0), limit: plan?.rewrap_piece_limit ?? null, unit: "ชิ้น", detail: "" },
+  ];
+
+  return <section className="dealer-service-plan-editor">
+    <header><div><h3>สิทธิ์บริการที่ร้านกำหนด</h3><p>เปิดหรือปิดสิทธิ์ และแก้จำนวนสูงสุดของลูกค้ารายนี้</p></div><button type="button" onClick={() => { setError(""); setOpen(true); }}>✎ แก้ไขสิทธิ์บริการ</button></header>
+    <div className="dealer-benefit-grid dealer-benefit-grid-editable">
+      {benefits.map((benefit) => <button type="button" key={benefit.key} className={benefit.included ? "" : "not-included"} onClick={() => { setError(""); setOpen(true); }}>
+        <span>{benefit.label}</span><b>{benefit.included ? `${benefit.used}/${benefit.limit} ${benefit.unit}` : "ไม่มีสิทธิ์"}</b><small>{benefit.included ? `คงเหลือ ${Math.max(0, Number(benefit.limit) - benefit.used)} ${benefit.unit}${benefit.detail ? ` · ${benefit.detail}` : ""}` : "Dealer ไม่ได้กำหนดสิทธิ์"}</small><em>แก้ไข</em>
+      </button>)}
+    </div>
+    {plan?.plan_note && <p className="dealer-plan-note"><b>หมายเหตุแพ็กเกจ</b>{plan.plan_note}</p>}
+    {message && <p className="dealer-plan-message" role="status">✓ {message}</p>}
+    {open && <div className="dealer-plan-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <section className="dealer-plan-modal" role="dialog" aria-modal="true" aria-labelledby="dealer-plan-title">
+        <header><div><h2 id="dealer-plan-title">กำหนดสิทธิ์บริการของร้าน</h2><p>เปิดเฉพาะสิทธิ์ที่ร้านมอบให้ลูกค้ารายนี้ และกำหนดจำนวนสูงสุด</p></div><button type="button" aria-label="ปิด" onClick={() => setOpen(false)}>×</button></header>
+        <form onSubmit={submit}>
+          <input type="hidden" name="serialCode" value={serial} />
+          <div className="dealer-plan-rights-grid">
+            <fieldset className={maintenanceIncluded ? "" : "is-off"}><legend><span>Maintenance</span><label className="dealer-plan-switch"><input name="maintenanceIncluded" type="checkbox" checked={maintenanceIncluded} onChange={(event) => setMaintenanceIncluded(event.target.checked)} /><i /></label></legend>
+              <label>จำนวนครั้งทั้งหมด<input name="maintenanceVisitLimit" type="number" min={Math.max(1, Number(plan?.maintenance_used ?? 0))} max="100" defaultValue={plan?.maintenance_visit_limit ?? 4} disabled={!maintenanceIncluded} required={maintenanceIncluded} /></label>
+              <label>รอบเข้าดูแลทุก<select name="maintenanceIntervalMonths" defaultValue={plan?.maintenance_interval_months ?? 6} disabled={!maintenanceIncluded} required={maintenanceIncluded}><option value="3">3 เดือน</option><option value="6">6 เดือน</option><option value="12">12 เดือน</option><option value="18">18 เดือน</option><option value="24">24 เดือน</option></select></label>
+              <label>นัดครั้งถัดไป<input name="nextRecommendedDateOverride" type="date" defaultValue={dateInputValue(plan?.next_recommended_date)} disabled={!maintenanceIncluded} /></label>
+              {Number(plan?.maintenance_used ?? 0) > 0 && <small>ใช้ไปแล้ว {plan?.maintenance_used} ครั้ง — ลดต่ำกว่านี้หรือปิดสิทธิ์ไม่ได้</small>}
+            </fieldset>
+            <fieldset className={claimIncluded ? "" : "is-off"}><legend><span>สิทธิ์เคลม</span><label className="dealer-plan-switch"><input name="claimIncluded" type="checkbox" checked={claimIncluded} onChange={(event) => setClaimIncluded(event.target.checked)} /><i /></label></legend>
+              <label>จำนวนชิ้นทั้งหมด<input name="claimPieceLimit" type="number" min={Math.max(1, Number(plan?.claim_used ?? 0))} max="100" defaultValue={plan?.claim_piece_limit ?? Math.max(3, Number(plan?.claim_used ?? 0))} disabled={!claimIncluded} required={claimIncluded} /></label>
+              {Number(plan?.claim_used ?? 0) > 0 && <small>ใช้ไปแล้ว {plan?.claim_used} ชิ้น — ลดต่ำกว่านี้หรือปิดสิทธิ์ไม่ได้</small>}
+            </fieldset>
+            <fieldset className={rewrapIncluded ? "" : "is-off"}><legend><span>สิทธิ์ Re-wrap</span><label className="dealer-plan-switch"><input name="rewrapIncluded" type="checkbox" checked={rewrapIncluded} onChange={(event) => setRewrapIncluded(event.target.checked)} /><i /></label></legend>
+              <label>จำนวนชิ้นทั้งหมด<input name="rewrapPieceLimit" type="number" min={Math.max(1, Number(plan?.rewrap_used ?? 0))} max="100" defaultValue={plan?.rewrap_piece_limit ?? Math.max(2, Number(plan?.rewrap_used ?? 0))} disabled={!rewrapIncluded} required={rewrapIncluded} /></label>
+              {Number(plan?.rewrap_used ?? 0) > 0 && <small>ใช้ไปแล้ว {plan?.rewrap_used} ชิ้น — ลดต่ำกว่านี้หรือปิดสิทธิ์ไม่ได้</small>}
+            </fieldset>
+          </div>
+          <label className="dealer-plan-wide">หมายเหตุสิทธิ์บริการที่ลูกค้าจะเห็น<textarea name="planNote" rows={3} defaultValue={plan?.plan_note ?? ""} maxLength={500} placeholder="เช่น กรุณานัดหมายก่อนเข้ารับบริการทุกครั้ง" /></label>
+          <div className="dealer-plan-terms-grid"><label>เงื่อนไขรับประกันงานติดตั้ง<textarea name="installationWarrantyTerms" rows={3} defaultValue={plan?.installation_warranty_terms ?? ""} maxLength={500} placeholder="เว้นว่างหากร้านไม่ให้บริการ" /></label><label>เงื่อนไขบริการลอกฟิล์ม<textarea name="removalWarrantyTerms" rows={3} defaultValue={plan?.removal_warranty_terms ?? ""} maxLength={500} placeholder="เว้นว่างหากร้านไม่ให้บริการ" /></label></div>
+          <p className="dealer-plan-safety">ประวัติที่ใช้สิทธิ์แล้วจะไม่ถูกลบ ระบบไม่อนุญาตให้ลดจำนวนต่ำกว่าที่ใช้ไปหรือปิดสิทธิ์ที่เคยใช้แล้ว</p>
+          {error && <p className="submit-error" role="alert">{error}</p>}
+          <footer><button type="button" className="button button-secondary" onClick={() => setOpen(false)}>ยกเลิก</button><button type="submit" className="button button-primary" disabled={submitting}>{submitting ? "กำลังบันทึก..." : "บันทึกสิทธิ์บริการ"}</button></footer>
+        </form>
+      </section>
+    </div>}
+  </section>;
+}
+
+function formatClientDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }).format(date);
+}
+
+function dateInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  const match = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+}
+
+export function DemoForm({ kind, initialSerial = "", profile, customerRegistration }: { kind: "contact" | "support" | "inspection" | "dealer-register" | "dealer-prefill" | "customer-complete" | "maintenance" | "serial-import" | "policy" | "profile"; initialSerial?: string; profile?: DealerProfileInput; customerRegistration?: CustomerRegistrationInput }) {
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [referenceCode, setReferenceCode] = useState("");
   const [cardPath, setCardPath] = useState("");
+  const [detailPath, setDetailPath] = useState("");
+  const [prefillPath, setPrefillPath] = useState("");
+  const [maintenanceIncluded, setMaintenanceIncluded] = useState(true);
+  const [claimIncluded, setClaimIncluded] = useState(false);
+  const [rewrapIncluded, setRewrapIncluded] = useState(false);
+  const [serviceType, setServiceType] = useState("");
   const labels = {
     contact: ["ส่งข้อความ", "เราได้รับข้อมูลแล้ว ทีมงานจะติดต่อกลับตามช่องทางที่ระบุ"],
     support: ["ส่งคำขอช่วยเหลือ", "สร้างคำขอแล้ว เลขอ้างอิง SUP-260722-014"],
     inspection: ["ส่งคำขอตรวจสภาพ", "สร้างคำขอแล้ว เลขอ้างอิง INS-260722-008"],
     "dealer-register": ["ลงทะเบียนบัตรรับประกัน", "ตรวจสอบข้อมูลครบแล้ว สร้างบัตรรับประกันตัวอย่างเรียบร้อย"],
+    "dealer-prefill": ["บันทึกข้อมูลช่วยกรอก", "บันทึกร่างข้อมูลลูกค้าแล้ว"],
+    "customer-complete": ["ยืนยันข้อมูลและเปิดบัตร", "ข้อมูลครบแล้ว บัตรรับประกันพร้อมใช้งาน"],
     maintenance: ["บันทึกการดูแล", "บันทึก Maintenance Record แล้ว"],
     "serial-import": ["ตรวจสอบไฟล์นำเข้า", "อ่านไฟล์ตัวอย่างแล้ว: 48 รายการพร้อมใช้, 2 รายการต้องตรวจสอบ"],
     policy: ["บันทึกร่าง Policy", "บันทึกร่างแล้ว (ยังไม่เผยแพร่สู่เว็บไซต์สาธารณะ)"],
@@ -64,15 +197,15 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (kind === "contact" || kind === "support" || kind === "inspection" || kind === "dealer-register" || kind === "maintenance" || kind === "serial-import" || kind === "policy" || kind === "profile") {
+    if (kind === "contact" || kind === "support" || kind === "inspection" || kind === "dealer-register" || kind === "dealer-prefill" || kind === "customer-complete" || kind === "maintenance" || kind === "serial-import" || kind === "policy" || kind === "profile") {
       setSubmitting(true);
       setSubmitError("");
       const form = new FormData(event.currentTarget);
       if (kind === "contact" || kind === "support" || kind === "inspection") form.set("kind", kind);
-      const endpoint = kind === "dealer-register" ? "/api/dealer/warranties" : kind === "maintenance" ? "/api/dealer/maintenance" : kind === "serial-import" ? "/api/admin/serials/import" : kind === "policy" ? "/api/admin/policies" : kind === "profile" ? "/api/dealer/profile" : "/api/public-requests";
+      const endpoint = kind === "dealer-register" ? "/api/dealer/warranties" : kind === "dealer-prefill" ? "/api/dealer/customer-prefill" : kind === "customer-complete" ? "/api/warranty/complete" : kind === "maintenance" ? "/api/dealer/maintenance" : kind === "serial-import" ? "/api/admin/serials/import" : kind === "policy" ? "/api/admin/policies" : kind === "profile" ? "/api/dealer/profile" : "/api/public-requests";
       try {
         const response = await fetch(endpoint, { method: "POST", body: form });
-        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; cardPath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
+        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; cardPath?: string; detailPath?: string; prefillPath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
         const successfulReference = result.referenceCode ?? result.serialCode ?? result.policyKey ?? (result.recordId ? String(result.recordId) : result.dealerId ? `Dealer ${result.dealerId}` : result.imported !== undefined ? `${result.imported} serials` : result.total !== undefined ? `${result.valid ?? 0}/${result.total} rows valid` : "");
         const rowErrors = result.errors?.slice(0, 5).map((item) => `แถว ${item.row}: ${item.message}`).join(" · ");
         if (!response.ok || !successfulReference) {
@@ -81,6 +214,8 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
         }
         setReferenceCode(successfulReference);
         setCardPath(result.cardPath ?? "");
+        setDetailPath(result.detailPath ?? "");
+        setPrefillPath(result.prefillPath ?? "");
         setSent(true);
       } catch (error) {
         setSubmitError(error instanceof Error ? error.message : "ไม่สามารถส่งคำขอได้ กรุณาลองใหม่อีกครั้ง");
@@ -92,7 +227,27 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
     setSent(true);
   }
 
-  if (sent) return <div className={`success-panel ${cardPath ? "success-panel-card" : ""}`}><b>✓</b><div><h3>{referenceCode ? "บันทึกข้อมูลเรียบร้อยแล้ว" : "ดำเนินการสำเร็จในโหมดตัวอย่าง"}</h3><p>{referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>{cardPath && <WarrantyQr cardPath={cardPath} serial={referenceCode} compact />}<button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); }}>กรอกข้อมูลใหม่</button></div></div>;
+  if (sent) {
+    const activationDone = kind === "dealer-register";
+    const prefillDone = kind === "dealer-prefill";
+    const customerDone = kind === "customer-complete";
+    return (
+      <div className={`success-panel ${cardPath ? "success-panel-card" : ""}`}>
+        <b>✓</b>
+        <div>
+          <p className="eyebrow">{activationDone ? "SERIAL ACTIVATED" : prefillDone ? "CUSTOMER DRAFT SAVED" : customerDone ? "WARRANTY ACTIVE" : "SAVED"}</p>
+          <h3>{activationDone ? "เปิด Serial เรียบร้อยแล้ว — งานขั้นตอนนี้เสร็จแล้ว" : prefillDone ? "บันทึกข้อมูลช่วยกรอกแล้ว" : customerDone ? "บัตรรับประกันพร้อมใช้งาน" : referenceCode ? "บันทึกข้อมูลเรียบร้อยแล้ว" : "ดำเนินการสำเร็จ"}</h3>
+          <p>{activationDone ? <>Serial <strong>{referenceCode}</strong> เริ่มนับอายุรับประกันแล้ว<br />ส่งมอบบัตรให้ลูกค้าสแกน QR เดิม เพื่อตรวจข้อมูลและยืนยันด้วยตนเอง</> : prefillDone ? <>Dealer บันทึกข้อมูลที่มีไว้เป็นร่างแล้ว ลูกค้าต้องสแกน QR ตรวจสอบ กรอกส่วนที่ขาด และกดยืนยันเพื่อให้บัตรสมบูรณ์</> : customerDone ? <>ข้อมูลถูกบันทึกแล้ว ใช้ QR เดิมตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการได้ตลอด</> : referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>
+          {activationDone && detailPath && <a className="button button-primary success-next-link" href={detailPath}>เสร็จสิ้น — กลับรายละเอียดบัตร <span>→</span></a>}
+          {activationDone && prefillPath && <a className="button button-secondary success-next-link" href={prefillPath}>ช่วยกรอกข้อมูลลูกค้า (ไม่บังคับ) <span>→</span></a>}
+          {prefillDone && detailPath && <a className="button button-primary success-next-link" href={detailPath}>กลับรายละเอียดบัตร <span>→</span></a>}
+          {customerDone && cardPath && <a className="button button-primary success-next-link" href={cardPath}>ดูบัตรรับประกัน <span>→</span></a>}
+          {cardPath && <WarrantyQr cardPath={cardPath} serial={referenceCode} compact />}
+          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); setDetailPath(""); setPrefillPath(""); }}>{activationDone ? "เปิด Serial ใบถัดไป" : prefillDone ? "ช่วยกรอกข้อมูลบัตรอื่น" : "กรอกข้อมูลใหม่"}</button>
+        </div>
+      </div>
+    );
+  }
 
   if (kind === "contact") return (
     <form className="form-grid" onSubmit={submit}>
@@ -113,7 +268,7 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
       <Field name="serialCode" label="Serial Number" placeholder="P-TH-000124" defaultValue={initialSerial} required />
       <Field name="contactName" label="ชื่อผู้ติดต่อ" placeholder="ชื่อ-นามสกุล" required />
       <Field name="contactPhone" label="เบอร์โทรศัพท์" placeholder="08x xxx xxxx" required />
-      <label>ประเภทคำขอ<select name="requestType" required defaultValue=""><option value="" disabled>เลือกประเภท</option><option>{kind === "inspection" ? "นัดตรวจสภาพ" : "สอบถามการรับประกัน"}</option><option>บัตร QR สูญหาย</option><option>ต้องการข้อมูลเพิ่มเติม</option></select></label>
+      <label>ประเภทคำขอ<select name="requestType" required defaultValue=""><option value="" disabled>เลือกประเภท</option>{kind === "inspection" ? <><option>ตรวจสภาพหลังติดตั้ง</option><option>ตรวจตามรอบ</option><option>ตรวจขอบฟิล์ม / การยกตัว</option><option>ตรวจหลังเกิดอุบัติเหตุ</option></> : <><option>ฟิล์มยกตัว / ขอบหลุด</option><option>ฟองอากาศ / รอยผิดปกติ</option><option>สีหรือผิวฟิล์มเปลี่ยน</option><option>ขอเคลมชิ้นส่วน</option><option>ขอ Re-wrap</option><option>บัตร QR สูญหาย</option><option>สอบถามเงื่อนไขรับประกัน</option></>}</select></label>
       <label className="field-wide">รายละเอียด<textarea name="detail" rows={5} placeholder="อธิบายอาการหรือรายละเอียดที่ต้องการให้ตรวจสอบ" required /></label>
       <label className="field-wide file-field">ภาพประกอบ (ไม่บังคับ)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple /><small>แนบได้สูงสุด 3 ภาพ ไฟล์ละไม่เกิน 5 MB และจัดเก็บแบบ private</small></label>
       <Honeypot />
@@ -127,24 +282,77 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
     <form className="form-grid" onSubmit={submit}>
       <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required />
       <Field name="installDate" label="วันที่ติดตั้ง" type="date" required />
-      <Field name="customerName" label="ชื่อลูกค้า" placeholder="ชื่อ-นามสกุล" required />
+      <Field name="workOrderRef" label="เลขที่งาน / ใบสั่งงาน" placeholder="เช่น WRAP-R2-260814-01" required />
+      <label>รูปแบบงาน Wrap<select name="installationType" required defaultValue="full_body"><option value="full_body">Wrap เต็มคัน</option><option value="partial">Wrap บางส่วน</option><option value="color_wrap">เปลี่ยนสีรถ</option><option value="custom">งานออกแบบพิเศษ</option></select></label>
+      <label className="field-wide">พื้นที่ที่ติดตั้ง<textarea name="coverageArea" rows={3} placeholder="เช่น เต็มคัน ยกเว้นหลังคา / ฝากระโปรงหน้า กันชนหน้า และกระจกมองข้าง" maxLength={500} required /></label>
+      <Field name="installationBranch" label="สาขาที่ติดตั้ง" placeholder="เช่น พระราม 2 / รัชดา / CDC" required />
+      <Field name="installerName" label="ผู้ติดตั้ง / หัวหน้าช่าง" placeholder="ชื่อผู้รับผิดชอบงาน" required />
+      <p className="field-wide form-note">ข้อมูลชุดนี้คือหลักฐานของงาน Wrap ลูกค้าจะกรอกข้อมูลเจ้าของรถและยืนยันรถด้วย QR เดิมในขั้นตอนถัดไป</p>
+      <fieldset className="field-wide service-plan-builder">
+        <legend>แพ็กเกจบริการหลังการขายของร้าน</legend>
+        <p>เลือกเฉพาะสิทธิ์ที่ร้านมอบให้ลูกค้ารายนี้ รายการที่ไม่เลือกจะแสดงว่า “ไม่รวมในแพ็กเกจ”</p>
+        <label className="service-plan-toggle"><input name="maintenanceIncluded" type="checkbox" checked={maintenanceIncluded} onChange={(event) => setMaintenanceIncluded(event.target.checked)} /><span><b>Maintenance ตามรอบ</b><small>กำหนดรอบเดือนและจำนวนครั้งทั้งหมด</small></span></label>
+        {maintenanceIncluded && <div className="service-plan-fields"><Field name="maintenanceIntervalMonths" label="ทุกกี่เดือน" type="number" defaultValue="6" required /><Field name="maintenanceVisitLimit" label="ทั้งหมดกี่ครั้ง" type="number" defaultValue="4" required /></div>}
+        <label className="service-plan-toggle"><input name="claimIncluded" type="checkbox" checked={claimIncluded} onChange={(event) => setClaimIncluded(event.target.checked)} /><span><b>สิทธิ์เคลมฟิล์ม</b><small>คิดสิทธิ์ตามจำนวนชิ้นที่ร้านรับผิดชอบ</small></span></label>
+        {claimIncluded && <div className="service-plan-fields"><Field name="claimPieceLimit" label="สิทธิ์เคลมทั้งหมด (ชิ้น)" type="number" defaultValue="3" required /></div>}
+        <label className="service-plan-toggle"><input name="rewrapIncluded" type="checkbox" checked={rewrapIncluded} onChange={(event) => setRewrapIncluded(event.target.checked)} /><span><b>สิทธิ์ Re-wrap</b><small>เปลี่ยนฟิล์มใหม่ตามเงื่อนไขของร้าน</small></span></label>
+        {rewrapIncluded && <div className="service-plan-fields"><Field name="rewrapPieceLimit" label="สิทธิ์ Re-wrap ทั้งหมด (ชิ้น)" type="number" defaultValue="2" required /></div>}
+        <label className="service-plan-note-field">หมายเหตุเงื่อนไข (ไม่บังคับ)<textarea name="planNote" rows={3} placeholder="เช่น ต้องเข้าตรวจตามรอบ และสิทธิ์เป็นไปตามเงื่อนไขของร้าน" maxLength={500} /></label>
+      </fieldset>
+      <fieldset className="field-wide dealer-workmanship-builder">
+        <legend>การรับประกันงานติดตั้งและบริการลอกของ Dealer</legend>
+        <p><b>Dealer เป็นผู้กำหนดและรับผิดชอบเงื่อนไขส่วนนี้โดยตรง</b> NEXS จะแสดงข้อความให้ลูกค้าใช้ตรวจสอบและเตือนความจำ แต่ไม่ถือเป็นการรับประกันผลิตภัณฑ์ฟิล์มของ NEXS หากร้านไม่ให้บริการ ให้เว้นช่องนั้นว่าง</p>
+        <label>เงื่อนไขรับประกันงานติดตั้งของร้าน (ไม่บังคับ)<textarea name="installationWarrantyTerms" rows={4} placeholder="เช่น รับประกันขอบยกหรือฟองจากงานติดตั้ง 12 เดือน กรุณานำรถเข้าตรวจที่สาขาที่ติดตั้ง" maxLength={500} /></label>
+        <label>เงื่อนไขบริการหรือรับประกันงานลอกฟิล์ม (ไม่บังคับ)<textarea name="removalWarrantyTerms" rows={4} placeholder="เช่น มีบริการลอกฟิล์มภายใน 5 ปี ค่าใช้จ่ายและเงื่อนไขเป็นไปตามที่ร้านกำหนด" maxLength={500} /></label>
+      </fieldset>
+      <label className="field-wide file-field">ภาพหลักฐานงานติดตั้ง<input name="photos" type="file" accept="image/*" multiple required /><small>ต้องมีอย่างน้อย 1 ภาพ และแนะนำ 4 ภาพ: หน้ารถ ด้านซ้าย ด้านขวา และรายละเอียดงาน · รองรับภาพจาก iPhone/Android สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB</small></label>
+      {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
+      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังเปิดใช้งาน..." : `เปิดใช้งาน Serial →`}</button>
+    </form>
+  );
+
+  if (kind === "dealer-prefill") return (
+    <form className="form-grid" onSubmit={submit}>
+      <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required readOnly={Boolean(initialSerial)} />
+      <p className="field-wide workflow-split-note"><b>ขั้นตอนเสริม — ไม่ใช่การยืนยันแทนลูกค้า</b><span>กรอกเฉพาะข้อมูลที่มีได้ ช่องที่ยังไม่ทราบเว้นว่างไว้ ลูกค้าจะเห็นเป็น Prefill และต้องตรวจสอบพร้อมยืนยันด้วยตนเอง</span></p>
+      <Field name="customerName" label="ชื่อ-นามสกุล (ถ้ามี)" placeholder="ชื่อเจ้าของรถ" defaultValue={customerRegistration?.customerName} />
+      <Field name="customerPhone" label="เบอร์โทรศัพท์ (ถ้ามี)" placeholder="08x xxx xxxx" defaultValue={customerRegistration?.customerPhone} />
+      <Field name="customerEmail" label="อีเมล (ถ้ามี)" placeholder="customer@example.com" type="email" defaultValue={customerRegistration?.customerEmail} />
+      <Field name="vehicleMake" label="ยี่ห้อรถ (ถ้ามี)" placeholder="เช่น Porsche" defaultValue={customerRegistration?.vehicleMake} />
+      <Field name="vehicleModel" label="รุ่นรถ (ถ้ามี)" placeholder="เช่น 911 Carrera" defaultValue={customerRegistration?.vehicleModel} />
+      <Field name="vehicleYear" label="ปีรถ ค.ศ. (ถ้ามี)" placeholder="เช่น 2025" type="number" defaultValue={customerRegistration?.vehicleYear} />
+      <Field name="vehicleColor" label="สีรถก่อน Wrap (ถ้ามี)" placeholder="เช่น ดำ" defaultValue={customerRegistration?.vehicleColor} />
+      <Field name="vehiclePlate" label="ทะเบียนรถ (ถ้ามี)" placeholder="ข้อมูลสาธารณะจะแสดงแบบปกปิด" defaultValue={customerRegistration?.vehiclePlate} />
+      <Field name="vehicleVinLast6" label="เลขตัวถัง 6 ตัวท้าย (ถ้ามี)" placeholder="เช่น AB1234" defaultValue={customerRegistration?.vehicleVinLast6} />
+      <Field name="odometerKm" label="เลขไมล์ (ถ้ามี)" placeholder="เช่น 24500" type="number" defaultValue={customerRegistration?.odometerKm} />
+      {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
+      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึกร่าง..." : `${button} →`}</button>
+    </form>
+  );
+
+  if (kind === "customer-complete") return (
+    <form className="form-grid" onSubmit={submit}>
+      <Field name="serialCode" label="Serial Number" placeholder="Serial จาก QR" defaultValue={initialSerial} required readOnly={Boolean(initialSerial)} />
+      <Field name="customerName" label="ชื่อ-นามสกุล" placeholder="ชื่อเจ้าของรถ" required />
       <Field name="customerPhone" label="เบอร์โทรศัพท์" placeholder="08x xxx xxxx" required />
       <Field name="customerEmail" label="อีเมล (ไม่บังคับ)" placeholder="customer@example.com" type="email" />
       <Field name="vehicleMake" label="ยี่ห้อรถ" placeholder="เช่น Porsche" required />
       <Field name="vehicleModel" label="รุ่นรถ" placeholder="เช่น 911" required />
-      <Field name="vehiclePlate" label="ทะเบียนรถ" placeholder="ข้อมูลนี้จะแสดงแบบปกปิดบน public card" required />
-      <label className="field-wide file-field">ภาพงานติดตั้ง (ไม่บังคับ)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple /><small>สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB และจัดเก็บแบบ private</small></label>
+      <Field name="vehiclePlate" label="ทะเบียนรถ" placeholder="ข้อมูลสาธารณะจะแสดงแบบปกปิด" required />
+      <Honeypot />
+      <Consent />
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
-      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังลงทะเบียน..." : `${button} →`}</button>
+      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึก..." : `${button} →`}</button>
     </form>
   );
 
   if (kind === "maintenance") return (
     <form className="form-grid" onSubmit={submit}>
-      <Field name="serialCode" label="Serial Number" placeholder="ค้นหาบัตรรับประกัน" required />
+      <Field name="serialCode" label="Serial Number" placeholder="ค้นหาบัตรรับประกัน" defaultValue={initialSerial} required />
       <Field name="maintenanceDate" label="วันที่เข้ารับบริการ" type="date" required />
-      <label>ประเภทบริการ<select name="maintenanceType" required defaultValue=""><option value="" disabled>เลือกประเภท</option><option value="maintenance">Maintenance</option><option value="inspection">Inspection</option><option value="after_sales">After-sales support</option></select></label>
+      <label>ประเภทบริการ<select name="maintenanceType" required value={serviceType} onChange={(event) => setServiceType(event.target.value)}><option value="" disabled>เลือกประเภท</option><option value="maintenance">Maintenance ตามรอบ</option><option value="claim">ใช้สิทธิ์เคลมฟิล์ม</option><option value="rewrap">ใช้สิทธิ์ Re-wrap</option><option value="inspection">ตรวจสภาพ</option><option value="after_sales">บริการหลังการขายอื่น ๆ</option></select></label>
       <Field name="performedBy" label="ผู้ดำเนินการ" placeholder="ชื่อช่างหรือผู้ตรวจสภาพ" required />
+      {(serviceType === "claim" || serviceType === "rewrap") && <><Field name="piecesCount" label="จำนวนชิ้นที่ใช้สิทธิ์" type="number" defaultValue="1" required /><Field name="serviceScope" label="ชิ้นส่วน / บริเวณ" placeholder="เช่น กันชนหน้า, ประตูซ้าย" required /></>}
       <label>ผลการตรวจ<select name="resultStatus" required defaultValue=""><option value="" disabled>เลือกผลการตรวจ</option><option value="normal">ปกติ</option><option value="follow_up">ต้องติดตามผล</option><option value="admin_review">ส่ง Admin ตรวจสอบ</option></select></label>
       <Field name="nextRecommendedDate" label="วันที่แนะนำครั้งถัดไป (ไม่บังคับ)" type="date" />
       <label className="field-wide">บันทึก<textarea name="note" rows={4} placeholder="รายละเอียดการดูแล" /></label>
@@ -193,8 +401,8 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
   </div>;
 }
 
-function Field({ label, placeholder, type = "text", required = false, name, defaultValue }: { label: string; placeholder?: string; type?: string; required?: boolean; name?: string; defaultValue?: string }) {
-  return <label>{label}<input name={name} type={type} placeholder={placeholder} defaultValue={defaultValue} required={required} /></label>;
+function Field({ label, placeholder, type = "text", required = false, readOnly = false, name, defaultValue }: { label: string; placeholder?: string; type?: string; required?: boolean; readOnly?: boolean; name?: string; defaultValue?: string }) {
+  return <label>{label}<input name={name} type={type} placeholder={placeholder} defaultValue={defaultValue} required={required} readOnly={readOnly} /></label>;
 }
 
 function Consent() {
@@ -317,32 +525,65 @@ export function AdminDealerForm() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [action, setAction] = useState("create_with_account");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSubmitting(true); setMessage(""); setError("");
     try {
       const response = await fetch("/api/admin/dealers", { method: "POST", body: new FormData(event.currentTarget) });
-      const result = await response.json() as { error?: string; dealerCode?: string; status?: string };
+      const result = await response.json() as { error?: string; dealerCode?: string; status?: string; accountEmail?: string };
       if (!response.ok || !result.dealerCode) throw new Error(result.error || "ไม่สามารถจัดการ Dealer ได้");
-      setMessage(`${result.dealerCode} · ${result.status}`); event.currentTarget.reset();
+      setMessage(`${result.dealerCode} · ${result.accountEmail ? `${result.accountEmail} · ` : ""}${result.status}`);
+      event.currentTarget.reset();
+      setTemporaryPassword("");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "ไม่สามารถจัดการ Dealer ได้"); }
     finally { setSubmitting(false); }
   }
 
+  const createsDealer = action === "create" || action === "create_with_account";
+  const usesAccount = action === "create_with_account" || action === "assign_account" || action === "reset_password" || action === "set_account_status";
+  const usesPassword = action === "create_with_account" || action === "reset_password";
+
   return <form className="form-grid" onSubmit={submit}>
-    <label>การดำเนินการ<select name="action" required defaultValue="create"><option value="create">สร้าง Dealer (สถานะ pending)</option><option value="set_status">เปลี่ยนสถานะ</option><option value="assign_account">ผูกบัญชีผู้ใช้</option></select></label>
+    <label className="field-wide">การดำเนินการ<select name="action" required value={action} onChange={(event) => { setAction(event.target.value); setMessage(""); setError(""); }}>
+      <option value="create_with_account">สร้าง Dealer พร้อมบัญชี Login (แนะนำ)</option>
+      <option value="create">สร้างเฉพาะ Dealer (สถานะ Pending)</option>
+      <option value="set_status">เปลี่ยนสถานะ Dealer</option>
+      <option value="assign_account">ผูกบัญชีที่มีอยู่แล้ว</option>
+      <option value="reset_password">Reset Password</option>
+      <option value="set_account_status">Suspend / Reactivate บัญชี</option>
+    </select></label>
     <Field name="dealerCode" label="Dealer code" placeholder="DLR-001" required />
-    <Field name="name" label="ชื่อร้าน (เมื่อสร้าง)" placeholder="NEXS Authorized Dealer" />
-    <Field name="province" label="จังหวัด (เมื่อสร้าง)" placeholder="Bangkok" />
-    <Field name="contactName" label="ผู้ติดต่อ (เมื่อสร้าง)" placeholder="ชื่อผู้ดูแลร้าน" />
-    <Field name="phone" label="เบอร์โทรศัพท์ (เมื่อสร้าง)" placeholder="02 xxx xxxx" />
-    <Field name="email" label="อีเมลร้าน (ไม่บังคับ)" placeholder="dealer@example.com" type="email" />
-    <Field name="certificationTier" label="ระดับการรับรอง (ไม่บังคับ)" placeholder="authorized" />
-    <label>สถานะใหม่<select name="status" defaultValue="active"><option value="active">Active</option><option value="suspended">Suspended</option></select></label>
-    <Field name="accountEmail" label="อีเมลบัญชี (เมื่อผูกบัญชี)" placeholder="user@example.com" type="email" />
+    {createsDealer && <>
+      <Field name="name" label="ชื่อร้าน" placeholder="NEXS Authorized Dealer" required />
+      <Field name="province" label="จังหวัด" placeholder="Bangkok" required />
+      <Field name="contactName" label="ผู้ติดต่อ" placeholder="ชื่อผู้ดูแลร้าน" required />
+      <Field name="phone" label="เบอร์โทรศัพท์" placeholder="02 xxx xxxx" required />
+      <Field name="email" label="อีเมลร้าน (ไม่บังคับ)" placeholder="dealer@example.com" type="email" />
+      <Field name="certificationTier" label="ระดับการรับรอง (ไม่บังคับ)" placeholder="authorized" />
+    </>}
+    {action === "set_status" && <label>สถานะ Dealer<select name="status" defaultValue="active"><option value="active">Active</option><option value="suspended">Suspended</option></select></label>}
+    {usesAccount && <Field name="accountEmail" label="Username / อีเมลบัญชี" placeholder="user@example.com" type="email" required />}
+    {action === "create_with_account" && <Field name="displayName" label="ชื่อผู้ใช้งาน" placeholder="ชื่อผู้ดูแลร้าน" required />}
+    {usesPassword && <label>รหัสผ่านชั่วคราว
+      <div className="password-generate-row">
+        <input name="temporaryPassword" type="text" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="off" required />
+        <button type="button" onClick={() => setTemporaryPassword(generateTemporaryPassword())}>สร้างรหัส</button>
+      </div>
+      <small>อย่างน้อย 8 ตัว มีตัวอักษรและตัวเลข ระบบจะบังคับให้ Dealer เปลี่ยนเมื่อเข้าสู่ระบบครั้งแรก</small>
+    </label>}
+    {action === "set_account_status" && <label>สถานะบัญชี<select name="accountStatus" defaultValue="active"><option value="active">Active</option><option value="suspended">Suspended</option></select></label>}
+    {action === "create_with_account" && <p className="field-wide form-note">Dealer และบัญชีจะ Active ทันที กรุณาส่ง Username และรหัสผ่านชั่วคราวให้ผู้รับอย่างปลอดภัย รหัสผ่านจะไม่ถูกแสดงอีกหลังบันทึก</p>}
     {error && <p className="field-wide submit-error" role="alert">{error}</p>}{message && <p className="field-wide submit-success" role="status">{message}</p>}
     <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึก..." : "บันทึก Dealer →"}</button>
   </form>;
+}
+
+function generateTemporaryPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(14));
+  return `N7${Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("")}`;
 }
 
 export function AdminProductForm() {

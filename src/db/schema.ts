@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const productSeries = sqliteTable("product_series", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -40,24 +40,45 @@ export const accountRoles = sqliteTable("account_roles", {
   role: text("role", { enum: ["dealer", "admin"] }).notNull(),
   dealerId: integer("dealer_id"),
   status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
+  isOwner: integer("is_owner", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("account_roles_email_role_uq").on(table.email, table.role)]);
+
+export const accountRolePermissions = sqliteTable("account_role_permissions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  accountRoleId: integer("account_role_id").notNull().references(() => accountRoles.id, { onDelete: "cascade" }),
+  permission: text("permission").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("account_role_permissions_role_permission_uq").on(table.accountRoleId, table.permission),
+  index("account_role_permissions_role_idx").on(table.accountRoleId),
+]);
 
 export const warranties = sqliteTable("warranties", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   serialCode: text("serial_code").notNull(),
   dealerId: integer("dealer_id").notNull(),
   productModelCode: text("product_model_code").notNull(),
-  customerName: text("customer_name").notNull(),
-  customerPhone: text("customer_phone").notNull(),
+  customerName: text("customer_name"),
+  customerPhone: text("customer_phone"),
   customerEmail: text("customer_email"),
-  vehicleMake: text("vehicle_make").notNull(),
-  vehicleModel: text("vehicle_model").notNull(),
-  vehiclePlate: text("vehicle_plate").notNull(),
+  vehicleMake: text("vehicle_make"),
+  vehicleModel: text("vehicle_model"),
+  vehiclePlate: text("vehicle_plate"),
+  vehicleYear: integer("vehicle_year"),
+  vehicleColor: text("vehicle_color"),
+  vehicleVinLast6: text("vehicle_vin_last6"),
+  odometerKm: integer("odometer_km"),
   installDate: text("install_date").notNull(),
   expiryDate: text("expiry_date"),
-  status: text("status", { enum: ["active", "expired", "under_review", "suspended"] }).notNull().default("active"),
+  workOrderRef: text("work_order_ref"),
+  installationType: text("installation_type", { enum: ["full_body", "partial", "color_wrap", "custom"] }).notNull().default("full_body"),
+  coverageArea: text("coverage_area").notNull().default("ติดตั้งเต็มคัน"),
+  installationBranch: text("installation_branch"),
+  installerName: text("installer_name"),
+  status: text("status", { enum: ["pending_customer", "active", "expired", "under_review", "suspended"] }).notNull().default("pending_customer"),
+  customerCompletedAt: text("customer_completed_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("warranties_serial_code_uq").on(table.serialCode)]);
 
@@ -72,8 +93,27 @@ export const maintenanceRecords = sqliteTable("maintenance_records", {
   resultStatus: text("result_status").notNull(),
   note: text("note"),
   nextRecommendedDate: text("next_recommended_date"),
+  piecesCount: integer("pieces_count").notNull().default(0),
+  serviceScope: text("service_scope"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("maintenance_records_reference_uq").on(table.referenceCode)]);
+
+export const warrantyServicePlans = sqliteTable("warranty_service_plans", {
+  warrantyId: integer("warranty_id").primaryKey(),
+  maintenanceIncluded: integer("maintenance_included", { mode: "boolean" }).notNull().default(false),
+  maintenanceIntervalMonths: integer("maintenance_interval_months"),
+  maintenanceVisitLimit: integer("maintenance_visit_limit"),
+  claimIncluded: integer("claim_included", { mode: "boolean" }).notNull().default(false),
+  claimPieceLimit: integer("claim_piece_limit"),
+  rewrapIncluded: integer("rewrap_included", { mode: "boolean" }).notNull().default(false),
+  rewrapPieceLimit: integer("rewrap_piece_limit"),
+  planNote: text("plan_note"),
+  installationWarrantyTerms: text("installation_warranty_terms"),
+  removalWarrantyTerms: text("removal_warranty_terms"),
+  nextRecommendedDateOverride: text("next_recommended_date_override"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
 
 export const registrationExceptions = sqliteTable("registration_exceptions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -157,6 +197,38 @@ export const auditLogs = sqliteTable("audit_logs", {
   detail: text("detail"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const stockWorkspaceState = sqliteTable("stock_workspace_state", {
+  workspaceKey: text("workspace_key").primaryKey(),
+  version: integer("version").notNull().default(1),
+  unitsJson: text("units_json").notNull(),
+  activityJson: text("activity_json").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const stockColorProducts = sqliteTable("stock_color_products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  skuCode: text("sku_code").notNull(),
+  seriesName: text("series_name").notNull(),
+  productName: text("product_name").notNull(),
+  colorName: text("color_name").notNull(),
+  colorCode: text("color_code").notNull().default(""),
+  colorHex: text("color_hex").notNull(),
+  sizeLabel: text("size_label").notNull(),
+  metres: real("metres").notNull(),
+  imageObjectKey: text("image_object_key"),
+  imageOriginalName: text("image_original_name"),
+  imageContentType: text("image_content_type"),
+  imageSizeBytes: integer("image_size_bytes"),
+  createdBy: text("created_by").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("stock_color_products_sku_code_uq").on(table.skuCode),
+  index("stock_color_products_updated_at_idx").on(table.updatedAt),
+]);
 
 export const publicRequestLimits = sqliteTable("public_request_limits", {
   limitKey: text("limit_key").primaryKey(),

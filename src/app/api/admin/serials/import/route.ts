@@ -1,5 +1,5 @@
 import { env } from "@/lib/server-env";
-import { authorizePartnerRequest, unauthorizedResponse } from "../../../../../db/partner-access";
+import { authorizeAdminRequest, unauthorizedResponse } from "../../../../../db/partner-access";
 import { enforceSameOrigin, fail, formText, PartnerValidationError } from "../../../_partner-utils";
 
 const MAX_CSV_BYTES = 1024 * 1024;
@@ -14,7 +14,7 @@ type StringRow = { value: string };
 export async function POST(request: Request) {
   const originFailure = enforceSameOrigin(request);
   if (originFailure) return originFailure;
-  const actor = await authorizePartnerRequest(request, "admin");
+  const actor = await authorizeAdminRequest(request, "serial.manage");
   if (!actor) return unauthorizedResponse();
 
   try {
