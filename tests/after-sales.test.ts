@@ -12,6 +12,8 @@ describe("after-sales plan validation", () => {
     form.set("rewrapIncluded", "on");
     form.set("rewrapPieceLimit", "2");
     form.set("planNote", "ตามเงื่อนไขของร้าน");
+    form.set("installationWarrantyTerms", "รับประกันขอบฟิล์ม 12 เดือน");
+    form.set("removalWarrantyTerms", "บริการลอกตามราคาที่ร้านแจ้ง");
     expect(parseServicePlan(form)).toEqual({
       maintenanceIncluded: true,
       maintenanceIntervalMonths: 6,
@@ -21,6 +23,8 @@ describe("after-sales plan validation", () => {
       rewrapIncluded: true,
       rewrapPieceLimit: 2,
       planNote: "ตามเงื่อนไขของร้าน",
+      installationWarrantyTerms: "รับประกันขอบฟิล์ม 12 เดือน",
+      removalWarrantyTerms: "บริการลอกตามราคาที่ร้านแจ้ง",
     });
   });
 
@@ -33,6 +37,8 @@ describe("after-sales plan validation", () => {
       claimPieceLimit: null,
       rewrapIncluded: false,
       rewrapPieceLimit: null,
+      installationWarrantyTerms: null,
+      removalWarrantyTerms: null,
     });
   });
 

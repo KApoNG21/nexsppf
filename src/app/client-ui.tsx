@@ -187,6 +187,12 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
         {rewrapIncluded && <div className="service-plan-fields"><Field name="rewrapPieceLimit" label="สิทธิ์ Re-wrap ทั้งหมด (ชิ้น)" type="number" defaultValue="2" required /></div>}
         <label className="service-plan-note-field">หมายเหตุเงื่อนไข (ไม่บังคับ)<textarea name="planNote" rows={3} placeholder="เช่น ต้องเข้าตรวจตามรอบ และสิทธิ์เป็นไปตามเงื่อนไขของร้าน" maxLength={500} /></label>
       </fieldset>
+      <fieldset className="field-wide dealer-workmanship-builder">
+        <legend>การรับประกันงานติดตั้งและบริการลอกของ Dealer</legend>
+        <p><b>Dealer เป็นผู้กำหนดและรับผิดชอบเงื่อนไขส่วนนี้โดยตรง</b> NEXS จะแสดงข้อความให้ลูกค้าใช้ตรวจสอบและเตือนความจำ แต่ไม่ถือเป็นการรับประกันผลิตภัณฑ์ฟิล์มของ NEXS หากร้านไม่ให้บริการ ให้เว้นช่องนั้นว่าง</p>
+        <label>เงื่อนไขรับประกันงานติดตั้งของร้าน (ไม่บังคับ)<textarea name="installationWarrantyTerms" rows={4} placeholder="เช่น รับประกันขอบยกหรือฟองจากงานติดตั้ง 12 เดือน กรุณานำรถเข้าตรวจที่สาขาที่ติดตั้ง" maxLength={500} /></label>
+        <label>เงื่อนไขบริการหรือรับประกันงานลอกฟิล์ม (ไม่บังคับ)<textarea name="removalWarrantyTerms" rows={4} placeholder="เช่น มีบริการลอกฟิล์มภายใน 5 ปี ค่าใช้จ่ายและเงื่อนไขเป็นไปตามที่ร้านกำหนด" maxLength={500} /></label>
+      </fieldset>
       <label className="field-wide file-field">ภาพหลักฐานงานติดตั้ง<input name="photos" type="file" accept="image/*" multiple required /><small>ต้องมีอย่างน้อย 1 ภาพ และแนะนำ 4 ภาพ: หน้ารถ ด้านซ้าย ด้านขวา และรายละเอียดงาน · รองรับภาพจาก iPhone/Android สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB</small></label>
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
       <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังเปิดใช้งาน..." : `เปิดใช้งาน Serial →`}</button>

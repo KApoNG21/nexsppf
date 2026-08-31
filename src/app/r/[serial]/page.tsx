@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLink, Logo, StatusPill, WarrantyJourney } from "../../components";
 import { findPublicWarranty, type PublicWarrantyRecord } from "../../../db/public-warranty";
 import { resolveProductFromSerial } from "../../../lib/serial";
+import { DEALER_SERVICE_NOTICE, NEXS_PRODUCT_WARRANTY_COVERAGE, NEXS_PRODUCT_WARRANTY_EXCLUSIONS, productWarrantyTitle } from "../../../lib/warranty-terms";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,20 @@ export default async function WarrantyCardPage({ params }: { params: Promise<{ s
           <h1>{record.product}</h1>
           <p className="serial-label">SERIAL NUMBER</p><strong className="serial-value">{record.serial}</strong>
           <dl><CardRow label="เลขที่งาน" value={record.workOrder} /><CardRow label="รูปแบบงาน" value={record.wrapType} /><CardRow label="พื้นที่ติดตั้ง" value={record.coverage} /><CardRow label="รถ" value={record.vehicle} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="ดูแลครั้งถัดไป" value={record.nextMaintenance} /><CardRow label="สาขา" value={record.branch} /><CardRow label="ศูนย์ติดตั้ง" value={record.dealer} /></dl>
+          <section className="nexs-product-warranty">
+            <p className="eyebrow">NEXS PRODUCT WARRANTY</p>
+            <h2>{productWarrantyTitle(record.product, record.productWarrantyYears)}</h2>
+            <article><b>คุ้มครอง</b><p>{NEXS_PRODUCT_WARRANTY_COVERAGE}</p></article>
+            <article className="warranty-exclusion"><b>ไม่ครอบคลุม</b><p>{NEXS_PRODUCT_WARRANTY_EXCLUSIONS}</p></article>
+          </section>
+          <section className="dealer-warranty-terms">
+            <p className="eyebrow">DEALER SERVICE TERMS</p>
+            <h2>งานติดตั้งและบริการลอกฟิล์ม</h2>
+            <article><span>รับประกันงานติดตั้ง</span><b>{record.installationWarrantyTerms || "Dealer ไม่ได้ระบุการรับประกันงานติดตั้ง"}</b></article>
+            <article><span>บริการ/รับประกันงานลอก</span><b>{record.removalWarrantyTerms || "Dealer ไม่ได้ระบุบริการหรือการรับประกันงานลอก"}</b></article>
+            <p className="dealer-service-notice">{DEALER_SERVICE_NOTICE}</p>
+          </section>
+          <h2 className="dealer-benefit-title">สิทธิ์บริการหลังการขายจาก Dealer</h2>
           <div className="service-benefit-grid">
             <BenefitCard label="Maintenance" unit="ครั้ง" benefit={record.benefits.maintenance} detail={record.benefits.maintenance.intervalMonths ? `ทุก ${record.benefits.maintenance.intervalMonths} เดือน` : undefined} />
             <BenefitCard label="เคลม" unit="ชิ้น" benefit={record.benefits.claim} />

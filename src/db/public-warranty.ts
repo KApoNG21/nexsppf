@@ -25,6 +25,7 @@ export type PublicServiceHistory = {
 export type PublicWarrantyRecord = {
   status: PublicWarrantyStatus;
   product: string;
+  productWarrantyYears: number | null;
   serial: string;
   vehicle: string;
   install: string;
@@ -39,6 +40,8 @@ export type PublicWarrantyRecord = {
   maintenance: string;
   nextMaintenance: string;
   planNote: string | null;
+  installationWarrantyTerms: string | null;
+  removalWarrantyTerms: string | null;
   benefits: {
     maintenance: PublicServiceBenefit;
     claim: PublicServiceBenefit;
@@ -86,6 +89,7 @@ type PublicWarrantyRow = {
   expiry_date: string | Date | null;
   warranty_status: string | null;
   product_name: string | null;
+  warranty_years: number | null;
   dealer_name: string | null;
   dealer_province: string | null;
   work_order_ref: string | null;
@@ -105,6 +109,8 @@ type PlanRow = {
   rewrap_included: boolean;
   rewrap_piece_limit: number | null;
   plan_note: string | null;
+  installation_warranty_terms: string | null;
+  removal_warranty_terms: string | null;
   maintenance_used: number;
   claim_used: number;
   rewrap_used: number;
@@ -165,6 +171,7 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
       w.expiry_date,
       w.status AS warranty_status,
       ps.name AS product_name,
+      ps.warranty_years,
       d.name AS dealer_name,
       d.province AS dealer_province,
       w.work_order_ref,
@@ -186,6 +193,7 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
   const product = row.product_name ?? row.product_model_code ?? row.serial_model_code;
   const base = {
     product,
+    productWarrantyYears: row.warranty_years == null ? null : Number(row.warranty_years),
     serial: row.serial_code,
     install: formatDate(row.install_date),
     expiry: formatDate(row.expiry_date),
@@ -200,6 +208,8 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
     vehicleColor: row.vehicle_color,
     nextMaintenance: "-",
     planNote: null,
+    installationWarrantyTerms: null,
+    removalWarrantyTerms: null,
     benefits: emptyBenefits(),
     serviceHistory: [],
   };
@@ -218,7 +228,7 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
         p.maintenance_interval_months, p.maintenance_visit_limit,
         COALESCE(p.claim_included, false) AS claim_included, p.claim_piece_limit,
         COALESCE(p.rewrap_included, false) AS rewrap_included, p.rewrap_piece_limit,
-        p.plan_note,
+        p.plan_note, p.installation_warranty_terms, p.removal_warranty_terms,
         (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'maintenance') AS maintenance_used,
         (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'claim') AS claim_used,
         (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'rewrap') AS rewrap_used,
@@ -282,6 +292,8 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
       : "ไม่รวมในแพ็กเกจ",
     nextMaintenance: benefits.maintenance.included ? formatDate(plan?.next_recommended_date ?? null) : "-",
     planNote: plan?.plan_note ?? null,
+    installationWarrantyTerms: plan?.installation_warranty_terms ?? null,
+    removalWarrantyTerms: plan?.removal_warranty_terms ?? null,
     benefits,
     serviceHistory: history,
   };

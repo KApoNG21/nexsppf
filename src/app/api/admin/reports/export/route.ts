@@ -16,7 +16,7 @@ const reports = {
       w.install_date, w.expiry_date, w.status,
       p.maintenance_included, p.maintenance_interval_months, p.maintenance_visit_limit,
       p.claim_included, p.claim_piece_limit, p.rewrap_included, p.rewrap_piece_limit,
-      p.plan_note, w.created_at
+      p.plan_note, p.installation_warranty_terms, p.removal_warranty_terms, w.created_at
       FROM warranties w
       JOIN dealers d ON d.id = w.dealer_id
       LEFT JOIN warranty_service_plans p ON p.warranty_id = w.id

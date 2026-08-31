@@ -114,8 +114,9 @@ export async function POST(request: Request) {
       env.DB.prepare(`
         INSERT INTO warranty_service_plans
           (warranty_id, maintenance_included, maintenance_interval_months, maintenance_visit_limit,
-           claim_included, claim_piece_limit, rewrap_included, rewrap_piece_limit, plan_note)
-        SELECT id, ?, ?, ?, ?, ?, ?, ?, ?
+           claim_included, claim_piece_limit, rewrap_included, rewrap_piece_limit, plan_note,
+           installation_warranty_terms, removal_warranty_terms)
+        SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         FROM warranties WHERE serial_code = ? AND dealer_id = ?
       `).bind(
         servicePlan.maintenanceIncluded,
@@ -126,6 +127,8 @@ export async function POST(request: Request) {
         servicePlan.rewrapIncluded,
         servicePlan.rewrapPieceLimit,
         servicePlan.planNote,
+        servicePlan.installationWarrantyTerms,
+        servicePlan.removalWarrantyTerms,
         serialCode,
         actor.dealerId,
       ),
@@ -137,7 +140,7 @@ export async function POST(request: Request) {
       env.DB.prepare(`
         INSERT INTO audit_logs (actor_email, actor_role, action, entity_type, entity_id, detail)
         VALUES (?, 'dealer', 'warranty.create', 'warranty', ?, ?)
-      `).bind(actor.email, serialCode, JSON.stringify({ dealerId: actor.dealerId, workOrderRef, installationType, coverageArea, installationBranch, installerName })),
+      `).bind(actor.email, serialCode, JSON.stringify({ dealerId: actor.dealerId, workOrderRef, installationType, coverageArea, installationBranch, installerName, installationWarrantyTermsProvided: Boolean(servicePlan.installationWarrantyTerms), removalWarrantyTermsProvided: Boolean(servicePlan.removalWarrantyTerms) })),
     ];
     const results = await env.DB.batch(statements);
     if (

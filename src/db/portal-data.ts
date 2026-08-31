@@ -36,6 +36,7 @@ export type DealerWarrantyDetail = {
   installer_name: string | null;
   install_date: string;
   expiry_date: string | null;
+  warranty_years: number | null;
   status: string;
 };
 
@@ -52,6 +53,8 @@ export type DealerServicePlan = {
   rewrap_piece_limit: number | null;
   rewrap_used: number;
   plan_note: string | null;
+  installation_warranty_terms: string | null;
+  removal_warranty_terms: string | null;
   next_recommended_date: string | null;
 };
 export type DealerMediaItem = { id: number; original_name: string; content_type: string; size_bytes: number };
@@ -138,12 +141,13 @@ export async function getDealerProfile(dealerId: number): Promise<DealerProfile 
 }
 
 export async function getDealerWarrantyDetail(dealerId: number, serialCode: string): Promise<{ warranty: DealerWarrantyDetail; plan: DealerServicePlan | null; maintenance: DealerMaintenanceItem[]; media: DealerMediaItem[] } | null> {
-  const warranty = await env.DB.prepare(`SELECT id, serial_code, product_model_code, customer_name, customer_phone, customer_email, vehicle_make, vehicle_model, vehicle_plate, vehicle_year, vehicle_color, vehicle_vin_last6, odometer_km, work_order_ref, installation_type, coverage_area, installation_branch, installer_name, install_date, expiry_date, status FROM warranties WHERE dealer_id = ? AND serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
+  const warranty = await env.DB.prepare(`SELECT w.id, w.serial_code, w.product_model_code, w.customer_name, w.customer_phone, w.customer_email, w.vehicle_make, w.vehicle_model, w.vehicle_plate, w.vehicle_year, w.vehicle_color, w.vehicle_vin_last6, w.odometer_km, w.work_order_ref, w.installation_type, w.coverage_area, w.installation_branch, w.installer_name, w.install_date, w.expiry_date, ps.warranty_years, w.status FROM warranties w LEFT JOIN product_series ps ON ps.model_code = w.product_model_code WHERE w.dealer_id = ? AND w.serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
   if (!warranty) return null;
   const [plan, maintenance, media] = await Promise.all([
     env.DB.prepare(`
       SELECT p.maintenance_included, p.maintenance_interval_months, p.maintenance_visit_limit,
         p.claim_included, p.claim_piece_limit, p.rewrap_included, p.rewrap_piece_limit, p.plan_note,
+        p.installation_warranty_terms, p.removal_warranty_terms,
         (SELECT COUNT(*) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'maintenance') AS maintenance_used,
         (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'claim') AS claim_used,
         (SELECT COALESCE(SUM(m.pieces_count), 0) FROM maintenance_records m WHERE m.warranty_id = ? AND m.maintenance_type = 'rewrap') AS rewrap_used,

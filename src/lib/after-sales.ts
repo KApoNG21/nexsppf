@@ -10,6 +10,8 @@ export type ServicePlanInput = {
   rewrapIncluded: boolean;
   rewrapPieceLimit: number | null;
   planNote: string | null;
+  installationWarrantyTerms: string | null;
+  removalWarrantyTerms: string | null;
 };
 
 export function parseServicePlan(form: FormData): ServicePlanInput {
@@ -25,6 +27,8 @@ export function parseServicePlan(form: FormData): ServicePlanInput {
     rewrapIncluded,
     rewrapPieceLimit: rewrapIncluded ? positiveInteger(form, "rewrapPieceLimit", 1, 100, "จำนวนชิ้น Re-wrap") : null,
     planNote: cleanOptionalText(form.get("planNote"), 500),
+    installationWarrantyTerms: cleanOptionalText(form.get("installationWarrantyTerms"), 500),
+    removalWarrantyTerms: cleanOptionalText(form.get("removalWarrantyTerms"), 500),
   };
 }
 

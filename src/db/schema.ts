@@ -108,6 +108,8 @@ export const warrantyServicePlans = sqliteTable("warranty_service_plans", {
   rewrapIncluded: integer("rewrap_included", { mode: "boolean" }).notNull().default(false),
   rewrapPieceLimit: integer("rewrap_piece_limit"),
   planNote: text("plan_note"),
+  installationWarrantyTerms: text("installation_warranty_terms"),
+  removalWarrantyTerms: text("removal_warranty_terms"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
