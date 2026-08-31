@@ -47,6 +47,32 @@ export type PublicWarrantyRecord = {
   serviceHistory: PublicServiceHistory[];
 };
 
+export type CustomerRegistrationDraft = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleYear: string;
+  vehicleColor: string;
+  vehiclePlate: string;
+  vehicleVinLast6: string;
+  odometerKm: string;
+};
+
+type CustomerRegistrationDraftRow = {
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_email: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_year: number | null;
+  vehicle_color: string | null;
+  vehicle_plate: string | null;
+  vehicle_vin_last6: string | null;
+  odometer_km: number | null;
+};
+
 type PublicWarrantyRow = {
   warranty_id: number | null;
   serial_code: string;
@@ -100,6 +126,29 @@ const emptyBenefits = () => ({
   claim: { included: false, used: 0, limit: null, remaining: null },
   rewrap: { included: false, used: 0, limit: null, remaining: null },
 });
+
+export async function findCustomerRegistrationDraft(serial: string): Promise<CustomerRegistrationDraft | null> {
+  const row = await env.DB.prepare(`
+    SELECT customer_name, customer_phone, customer_email, vehicle_make, vehicle_model,
+      vehicle_year, vehicle_color, vehicle_plate, vehicle_vin_last6, odometer_km
+    FROM warranties
+    WHERE serial_code = ? AND status = 'pending_customer'
+    LIMIT 1
+  `).bind(serial).first<CustomerRegistrationDraftRow>();
+  if (!row) return null;
+  return {
+    customerName: row.customer_name ?? "",
+    customerPhone: row.customer_phone ?? "",
+    customerEmail: row.customer_email ?? "",
+    vehicleMake: row.vehicle_make ?? "",
+    vehicleModel: row.vehicle_model ?? "",
+    vehicleYear: row.vehicle_year == null ? "" : String(row.vehicle_year),
+    vehicleColor: row.vehicle_color ?? "",
+    vehiclePlate: row.vehicle_plate ?? "",
+    vehicleVinLast6: row.vehicle_vin_last6 ?? "",
+    odometerKm: row.odometer_km == null ? "" : String(row.odometer_km),
+  };
+}
 
 export async function findPublicWarranty(serial: string): Promise<PublicWarrantyRecord | null> {
   const row = await env.DB.prepare(`

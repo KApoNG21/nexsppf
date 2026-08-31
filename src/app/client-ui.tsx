@@ -15,6 +15,19 @@ type DealerProfileInput = {
   status: string;
 };
 
+type CustomerRegistrationInput = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleYear: string;
+  vehicleColor: string;
+  vehiclePlate: string;
+  vehicleVinLast6: string;
+  odometerKm: string;
+};
+
 export function WarrantyLookup({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [serial, setSerial] = useState("");
@@ -44,13 +57,14 @@ export function WarrantyLookup({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact" | "support" | "inspection" | "dealer-register" | "customer-complete" | "maintenance" | "serial-import" | "policy" | "profile"; initialSerial?: string; profile?: DealerProfileInput }) {
+export function DemoForm({ kind, initialSerial = "", profile, customerRegistration }: { kind: "contact" | "support" | "inspection" | "dealer-register" | "dealer-prefill" | "customer-complete" | "maintenance" | "serial-import" | "policy" | "profile"; initialSerial?: string; profile?: DealerProfileInput; customerRegistration?: CustomerRegistrationInput }) {
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [referenceCode, setReferenceCode] = useState("");
   const [cardPath, setCardPath] = useState("");
-  const [profilePath, setProfilePath] = useState("");
+  const [detailPath, setDetailPath] = useState("");
+  const [prefillPath, setPrefillPath] = useState("");
   const [maintenanceIncluded, setMaintenanceIncluded] = useState(true);
   const [claimIncluded, setClaimIncluded] = useState(false);
   const [rewrapIncluded, setRewrapIncluded] = useState(false);
@@ -60,6 +74,7 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
     support: ["ส่งคำขอช่วยเหลือ", "สร้างคำขอแล้ว เลขอ้างอิง SUP-260722-014"],
     inspection: ["ส่งคำขอตรวจสภาพ", "สร้างคำขอแล้ว เลขอ้างอิง INS-260722-008"],
     "dealer-register": ["ลงทะเบียนบัตรรับประกัน", "ตรวจสอบข้อมูลครบแล้ว สร้างบัตรรับประกันตัวอย่างเรียบร้อย"],
+    "dealer-prefill": ["บันทึกข้อมูลช่วยกรอก", "บันทึกร่างข้อมูลลูกค้าแล้ว"],
     "customer-complete": ["ยืนยันข้อมูลและเปิดบัตร", "ข้อมูลครบแล้ว บัตรรับประกันพร้อมใช้งาน"],
     maintenance: ["บันทึกการดูแล", "บันทึก Maintenance Record แล้ว"],
     "serial-import": ["ตรวจสอบไฟล์นำเข้า", "อ่านไฟล์ตัวอย่างแล้ว: 48 รายการพร้อมใช้, 2 รายการต้องตรวจสอบ"],
@@ -70,15 +85,15 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (kind === "contact" || kind === "support" || kind === "inspection" || kind === "dealer-register" || kind === "customer-complete" || kind === "maintenance" || kind === "serial-import" || kind === "policy" || kind === "profile") {
+    if (kind === "contact" || kind === "support" || kind === "inspection" || kind === "dealer-register" || kind === "dealer-prefill" || kind === "customer-complete" || kind === "maintenance" || kind === "serial-import" || kind === "policy" || kind === "profile") {
       setSubmitting(true);
       setSubmitError("");
       const form = new FormData(event.currentTarget);
       if (kind === "contact" || kind === "support" || kind === "inspection") form.set("kind", kind);
-      const endpoint = kind === "dealer-register" ? "/api/dealer/warranties" : kind === "customer-complete" ? "/api/warranty/complete" : kind === "maintenance" ? "/api/dealer/maintenance" : kind === "serial-import" ? "/api/admin/serials/import" : kind === "policy" ? "/api/admin/policies" : kind === "profile" ? "/api/dealer/profile" : "/api/public-requests";
+      const endpoint = kind === "dealer-register" ? "/api/dealer/warranties" : kind === "dealer-prefill" ? "/api/dealer/customer-prefill" : kind === "customer-complete" ? "/api/warranty/complete" : kind === "maintenance" ? "/api/dealer/maintenance" : kind === "serial-import" ? "/api/admin/serials/import" : kind === "policy" ? "/api/admin/policies" : kind === "profile" ? "/api/dealer/profile" : "/api/public-requests";
       try {
         const response = await fetch(endpoint, { method: "POST", body: form });
-        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; cardPath?: string; profilePath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
+        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; cardPath?: string; detailPath?: string; prefillPath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
         const successfulReference = result.referenceCode ?? result.serialCode ?? result.policyKey ?? (result.recordId ? String(result.recordId) : result.dealerId ? `Dealer ${result.dealerId}` : result.imported !== undefined ? `${result.imported} serials` : result.total !== undefined ? `${result.valid ?? 0}/${result.total} rows valid` : "");
         const rowErrors = result.errors?.slice(0, 5).map((item) => `แถว ${item.row}: ${item.message}`).join(" · ");
         if (!response.ok || !successfulReference) {
@@ -87,7 +102,8 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
         }
         setReferenceCode(successfulReference);
         setCardPath(result.cardPath ?? "");
-        setProfilePath(result.profilePath ?? "");
+        setDetailPath(result.detailPath ?? "");
+        setPrefillPath(result.prefillPath ?? "");
         setSent(true);
       } catch (error) {
         setSubmitError(error instanceof Error ? error.message : "ไม่สามารถส่งคำขอได้ กรุณาลองใหม่อีกครั้ง");
@@ -101,18 +117,21 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
 
   if (sent) {
     const activationDone = kind === "dealer-register";
+    const prefillDone = kind === "dealer-prefill";
     const customerDone = kind === "customer-complete";
     return (
       <div className={`success-panel ${cardPath ? "success-panel-card" : ""}`}>
         <b>✓</b>
         <div>
-          <p className="eyebrow">{activationDone ? "SERIAL ACTIVATED" : customerDone ? "WARRANTY ACTIVE" : "SAVED"}</p>
-          <h3>{activationDone ? "เปิด Serial เรียบร้อยแล้ว" : customerDone ? "บัตรรับประกันพร้อมใช้งาน" : referenceCode ? "บันทึกข้อมูลเรียบร้อยแล้ว" : "ดำเนินการสำเร็จ"}</h3>
-          <p>{activationDone ? <>Serial <strong>{referenceCode}</strong> เริ่มนับอายุรับประกันแล้ว<br />ให้ลูกค้าสแกน QR เดิมและกรอกข้อมูลเจ้าของรถในขั้นตอนถัดไป</> : customerDone ? <>ข้อมูลถูกบันทึกแล้ว ใช้ QR เดิมตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการได้ตลอด</> : referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>
-          {profilePath && <a className="button button-primary success-next-link" href={profilePath}>เปิดหน้ากรอกข้อมูลลูกค้า <span>→</span></a>}
+          <p className="eyebrow">{activationDone ? "SERIAL ACTIVATED" : prefillDone ? "CUSTOMER DRAFT SAVED" : customerDone ? "WARRANTY ACTIVE" : "SAVED"}</p>
+          <h3>{activationDone ? "เปิด Serial เรียบร้อยแล้ว — งานขั้นตอนนี้เสร็จแล้ว" : prefillDone ? "บันทึกข้อมูลช่วยกรอกแล้ว" : customerDone ? "บัตรรับประกันพร้อมใช้งาน" : referenceCode ? "บันทึกข้อมูลเรียบร้อยแล้ว" : "ดำเนินการสำเร็จ"}</h3>
+          <p>{activationDone ? <>Serial <strong>{referenceCode}</strong> เริ่มนับอายุรับประกันแล้ว<br />ส่งมอบบัตรให้ลูกค้าสแกน QR เดิม เพื่อตรวจข้อมูลและยืนยันด้วยตนเอง</> : prefillDone ? <>Dealer บันทึกข้อมูลที่มีไว้เป็นร่างแล้ว ลูกค้าต้องสแกน QR ตรวจสอบ กรอกส่วนที่ขาด และกดยืนยันเพื่อให้บัตรสมบูรณ์</> : customerDone ? <>ข้อมูลถูกบันทึกแล้ว ใช้ QR เดิมตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการได้ตลอด</> : referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>
+          {activationDone && detailPath && <a className="button button-primary success-next-link" href={detailPath}>เสร็จสิ้น — กลับรายละเอียดบัตร <span>→</span></a>}
+          {activationDone && prefillPath && <a className="button button-secondary success-next-link" href={prefillPath}>ช่วยกรอกข้อมูลลูกค้า (ไม่บังคับ) <span>→</span></a>}
+          {prefillDone && detailPath && <a className="button button-primary success-next-link" href={detailPath}>กลับรายละเอียดบัตร <span>→</span></a>}
           {customerDone && cardPath && <a className="button button-primary success-next-link" href={cardPath}>ดูบัตรรับประกัน <span>→</span></a>}
           {cardPath && <WarrantyQr cardPath={cardPath} serial={referenceCode} compact />}
-          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); setProfilePath(""); }}>{activationDone ? "เปิด Serial ใบถัดไป" : "กรอกข้อมูลใหม่"}</button>
+          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); setDetailPath(""); setPrefillPath(""); }}>{activationDone ? "เปิด Serial ใบถัดไป" : prefillDone ? "ช่วยกรอกข้อมูลบัตรอื่น" : "กรอกข้อมูลใหม่"}</button>
         </div>
       </div>
     );
@@ -171,6 +190,25 @@ export function DemoForm({ kind, initialSerial = "", profile }: { kind: "contact
       <label className="field-wide file-field">ภาพหลักฐานงานติดตั้ง<input name="photos" type="file" accept="image/*" multiple required /><small>ต้องมีอย่างน้อย 1 ภาพ และแนะนำ 4 ภาพ: หน้ารถ ด้านซ้าย ด้านขวา และรายละเอียดงาน · รองรับภาพจาก iPhone/Android สูงสุด 5 ภาพ ไฟล์ละไม่เกิน 5 MB</small></label>
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
       <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังเปิดใช้งาน..." : `เปิดใช้งาน Serial →`}</button>
+    </form>
+  );
+
+  if (kind === "dealer-prefill") return (
+    <form className="form-grid" onSubmit={submit}>
+      <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required readOnly={Boolean(initialSerial)} />
+      <p className="field-wide workflow-split-note"><b>ขั้นตอนเสริม — ไม่ใช่การยืนยันแทนลูกค้า</b><span>กรอกเฉพาะข้อมูลที่มีได้ ช่องที่ยังไม่ทราบเว้นว่างไว้ ลูกค้าจะเห็นเป็น Prefill และต้องตรวจสอบพร้อมยืนยันด้วยตนเอง</span></p>
+      <Field name="customerName" label="ชื่อ-นามสกุล (ถ้ามี)" placeholder="ชื่อเจ้าของรถ" defaultValue={customerRegistration?.customerName} />
+      <Field name="customerPhone" label="เบอร์โทรศัพท์ (ถ้ามี)" placeholder="08x xxx xxxx" defaultValue={customerRegistration?.customerPhone} />
+      <Field name="customerEmail" label="อีเมล (ถ้ามี)" placeholder="customer@example.com" type="email" defaultValue={customerRegistration?.customerEmail} />
+      <Field name="vehicleMake" label="ยี่ห้อรถ (ถ้ามี)" placeholder="เช่น Porsche" defaultValue={customerRegistration?.vehicleMake} />
+      <Field name="vehicleModel" label="รุ่นรถ (ถ้ามี)" placeholder="เช่น 911 Carrera" defaultValue={customerRegistration?.vehicleModel} />
+      <Field name="vehicleYear" label="ปีรถ ค.ศ. (ถ้ามี)" placeholder="เช่น 2025" type="number" defaultValue={customerRegistration?.vehicleYear} />
+      <Field name="vehicleColor" label="สีรถก่อน Wrap (ถ้ามี)" placeholder="เช่น ดำ" defaultValue={customerRegistration?.vehicleColor} />
+      <Field name="vehiclePlate" label="ทะเบียนรถ (ถ้ามี)" placeholder="ข้อมูลสาธารณะจะแสดงแบบปกปิด" defaultValue={customerRegistration?.vehiclePlate} />
+      <Field name="vehicleVinLast6" label="เลขตัวถัง 6 ตัวท้าย (ถ้ามี)" placeholder="เช่น AB1234" defaultValue={customerRegistration?.vehicleVinLast6} />
+      <Field name="odometerKm" label="เลขไมล์ (ถ้ามี)" placeholder="เช่น 24500" type="number" defaultValue={customerRegistration?.odometerKm} />
+      {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
+      <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึกร่าง..." : `${button} →`}</button>
     </form>
   );
 

@@ -121,6 +121,7 @@ export function DashboardShell({ role, title, children, active = "dashboard", ad
   const dealerLinks: DashboardLink[] = [
     { key: "dashboard", label: "ภาพรวม", href: "/dealer" },
     { key: "register", label: "เปิดใช้งาน QR", href: "/dealer/register-warranty" },
+    { key: "customer-registration", label: "ช่วยกรอกข้อมูลลูกค้า", href: "/dealer/customer-registration" },
     { key: "warranties", label: "บัตรรับประกัน", href: "/dealer/warranties" },
     { key: "maintenance", label: "บำรุงรักษา", href: "/dealer/maintenance" },
     { key: "requests", label: "งานที่ได้รับมอบหมาย", href: "/dealer/requests" },

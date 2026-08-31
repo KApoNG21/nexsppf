@@ -150,7 +150,8 @@ export async function POST(request: Request) {
       serialCode,
       status: "pending_customer",
       cardPath: `/r/${encodeURIComponent(serialCode)}`,
-      profilePath: `/warranty/complete?serial=${encodeURIComponent(serialCode)}`,
+      detailPath: `/dealer/warranties/${encodeURIComponent(serialCode)}`,
+      prefillPath: `/dealer/customer-registration?serial=${encodeURIComponent(serialCode)}`,
     }, { status: 201 });
   } catch (error) {
     await Promise.allSettled(uploadedKeys.map((key) => env.FILES.delete(key)));
