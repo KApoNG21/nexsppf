@@ -8,6 +8,7 @@ import {
   sessionMaxAge,
 } from "@/lib/auth-session";
 import { enforceSameOrigin, publicRequestUrl } from "../../_partner-utils";
+import { resolvePartnerLoginIdentifier } from "@/lib/partner-login";
 
 type AccountRow = {
   email: string;
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   if (originError) return originError;
 
   const form = await request.formData();
-  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const email = resolvePartnerLoginIdentifier(String(form.get("email") ?? ""));
   const password = String(form.get("password") ?? "");
   const requestedReturnTo = String(form.get("return_to") ?? "");
   if (!email || password.length < 8) return redirectWithError(request, requestedReturnTo);
