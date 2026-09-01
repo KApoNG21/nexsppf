@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 export const SESSION_COOKIE = "nexs_partner_session";
 const SESSION_SECONDS = 60 * 60 * 12;
+const REMEMBERED_SESSION_SECONDS = 60 * 60 * 24 * 30;
 
 export type PartnerSession = {
   email: string;
@@ -11,13 +12,13 @@ export type PartnerSession = {
   expiresAt: number;
 };
 
-export function createSessionToken(input: { email: string; displayName: string }) {
+export function createSessionToken(input: { email: string; displayName: string; maxAgeSeconds?: number }) {
   const now = Math.floor(Date.now() / 1000);
   const payload: PartnerSession = {
     email: input.email.trim().toLowerCase(),
     displayName: input.displayName.trim() || input.email.trim().toLowerCase(),
     issuedAt: now,
-    expiresAt: now + SESSION_SECONDS,
+    expiresAt: now + (input.maxAgeSeconds ?? SESSION_SECONDS),
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${encodedPayload}.${sign(encodedPayload)}`;
@@ -59,8 +60,8 @@ export function sessionFromRequest(request: Request | NextRequest) {
   return readSessionToken(token ? decodeURIComponent(token) : null);
 }
 
-export function sessionMaxAge() {
-  return SESSION_SECONDS;
+export function sessionMaxAge(rememberDevice = false) {
+  return rememberDevice ? REMEMBERED_SESSION_SECONDS : SESSION_SECONDS;
 }
 
 export function safeReturnPath(value: string | null | undefined, fallback = "/dealer") {

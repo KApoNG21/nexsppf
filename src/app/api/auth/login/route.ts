@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   const email = resolvePartnerLoginIdentifier(String(form.get("email") ?? ""));
   const password = String(form.get("password") ?? "");
   const requestedReturnTo = String(form.get("return_to") ?? "");
+  const rememberDevice = form.get("remember_me") === "on";
   if (!email || password.length < 8) return redirectWithError(request, requestedReturnTo);
   if (!await allowLoginAttempt(request, email)) return redirectWithError(request, requestedReturnTo);
 
@@ -49,14 +50,15 @@ export async function POST(request: Request) {
     : intendedReturnTo;
 
   const response = NextResponse.redirect(publicRequestUrl(request, returnTo), 303);
+  const maxAge = sessionMaxAge(rememberDevice);
   response.cookies.set({
     name: SESSION_COOKIE,
-    value: createSessionToken({ email: account.email, displayName: account.display_name }),
+    value: createSessionToken({ email: account.email, displayName: account.display_name, maxAgeSeconds: maxAge }),
     httpOnly: true,
     secure: isSecureRequest(request),
     sameSite: "lax",
     path: "/",
-    maxAge: sessionMaxAge(),
+    maxAge,
   });
   return response;
 }

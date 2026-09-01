@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { normalizeWarrantySerial, WarrantyScanner } from "./warranty-client";
 
 type DealerProfileInput = {
   dealerCode: string;
@@ -181,6 +182,24 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
   const [claimIncluded, setClaimIncluded] = useState(false);
   const [rewrapIncluded, setRewrapIncluded] = useState(false);
   const [serviceType, setServiceType] = useState("");
+  const [serialInput, setSerialInput] = useState(initialSerial);
+  const [serialScannerOpen, setSerialScannerOpen] = useState(false);
+  const [serialScanMessage, setSerialScanMessage] = useState(initialSerial ? `รับ Serial ${initialSerial} จาก QR แล้ว` : "");
+  useEffect(() => {
+    setSerialInput(initialSerial);
+    setSerialScanMessage(initialSerial ? `รับ Serial ${initialSerial} จาก QR แล้ว` : "");
+  }, [initialSerial]);
+  const acceptScannedSerial = useCallback((raw: string) => {
+    const serial = normalizeWarrantySerial(raw);
+    if (!/^[A-Z0-9-]{6,64}$/.test(serial)) {
+      setSerialScanMessage("อ่าน QR ได้ แต่ไม่พบ Serial NEXS ที่ถูกต้อง กรุณาลองใหม่หรือกรอกเลขใต้ QR");
+      return false;
+    }
+    setSerialInput(serial);
+    setSubmitError("");
+    setSerialScanMessage(`อ่าน Serial ${serial} สำเร็จ`);
+    return true;
+  }, []);
   const labels = {
     contact: ["ส่งข้อความ", "เราได้รับข้อมูลแล้ว ทีมงานจะติดต่อกลับตามช่องทางที่ระบุ"],
     support: ["ส่งคำขอช่วยเหลือ", "สร้างคำขอแล้ว เลขอ้างอิง SUP-260722-014"],
@@ -243,7 +262,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
           {prefillDone && detailPath && <a className="button button-primary success-next-link" href={detailPath}>กลับรายละเอียดบัตร <span>→</span></a>}
           {customerDone && cardPath && <a className="button button-primary success-next-link" href={cardPath}>ดูบัตรรับประกัน <span>→</span></a>}
           {cardPath && <WarrantyQr cardPath={cardPath} serial={referenceCode} compact />}
-          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); setDetailPath(""); setPrefillPath(""); }}>{activationDone ? "เปิด Serial ใบถัดไป" : prefillDone ? "ช่วยกรอกข้อมูลบัตรอื่น" : "กรอกข้อมูลใหม่"}</button>
+          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); setDetailPath(""); setPrefillPath(""); if (activationDone) { setSerialInput(""); setSerialScanMessage(""); } }}>{activationDone ? "เปิด Serial ใบถัดไป" : prefillDone ? "ช่วยกรอกข้อมูลบัตรอื่น" : "กรอกข้อมูลใหม่"}</button>
         </div>
       </div>
     );
@@ -278,9 +297,13 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
     </form>
   );
 
-  if (kind === "dealer-register") return (
+  if (kind === "dealer-register") return (<>
     <form className="form-grid" onSubmit={submit}>
-      <Field name="serialCode" label="Serial Number" placeholder="สแกนหรือกรอก Serial" defaultValue={initialSerial} required />
+      <div className="field-wide dealer-serial-entry">
+        <label>Serial Number<input name="serialCode" value={serialInput} onChange={(event) => { setSerialInput(event.target.value.toUpperCase().replace(/\s+/g, "")); setSerialScanMessage(""); setSubmitError(""); }} placeholder="สแกน QR หรือกรอก Serial ใต้ QR" autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={64} pattern="[A-Za-z0-9-]{6,64}" required /></label>
+        <div className="dealer-serial-actions"><button type="button" onClick={() => setSerialScannerOpen(true)}><span aria-hidden="true">▣</span> สแกน QR ด้วยกล้อง</button><small>รองรับกล้องหลัง iPhone / Android หรือเลือกรูป QR จากเครื่อง</small></div>
+        {serialScanMessage && <p className={serialScanMessage.startsWith("อ่าน QR ได้") ? "form-error" : "serial-scan-success"} role="status">{serialScanMessage}</p>}
+      </div>
       <Field name="installDate" label="วันที่ติดตั้ง" type="date" required />
       <Field name="workOrderRef" label="เลขที่งาน / ใบสั่งงาน" placeholder="เช่น WRAP-R2-260814-01" required />
       <label>รูปแบบงาน Wrap<select name="installationType" required defaultValue="full_body"><option value="full_body">Wrap เต็มคัน</option><option value="partial">Wrap บางส่วน</option><option value="color_wrap">เปลี่ยนสีรถ</option><option value="custom">งานออกแบบพิเศษ</option></select></label>
@@ -309,7 +332,8 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
       <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังเปิดใช้งาน..." : `เปิดใช้งาน Serial →`}</button>
     </form>
-  );
+    {serialScannerOpen && <WarrantyScanner onDetected={acceptScannedSerial} onClose={() => setSerialScannerOpen(false)} />}
+  </>);
 
   if (kind === "dealer-prefill") return (
     <form className="form-grid" onSubmit={submit}>

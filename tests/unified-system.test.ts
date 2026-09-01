@@ -7,6 +7,7 @@ import {
   readSessionToken,
   safePartnerLoginReturnPath,
   safeReturnPath,
+  sessionMaxAge,
 } from "@/lib/auth-session";
 import { PrivateFileBucket } from "@/lib/server-env";
 
@@ -86,6 +87,15 @@ describe("unified NEXS production system", () => {
       displayName: "NEXS Admin",
     });
     expect(readSessionToken(`${token.slice(0, -1)}x`)).toBeNull();
+  });
+
+  it("keeps a remembered partner signed in for 30 days without storing the raw password", () => {
+    process.env.AUTH_SECRET = "test-only-secret-with-at-least-32-characters";
+    const maxAge = sessionMaxAge(true);
+    const token = createSessionToken({ email: "dealer@nexs.test", displayName: "Dealer", maxAgeSeconds: maxAge });
+    const session = readSessionToken(token);
+    expect(maxAge).toBe(60 * 60 * 24 * 30);
+    expect(session && session.expiresAt - session.issuedAt).toBe(maxAge);
   });
 
   it("blocks external return URLs and authentication endpoints", () => {
