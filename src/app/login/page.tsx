@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Logo } from "../components";
-import { safeReturnPath } from "@/lib/auth-session";
+import { safePartnerLoginReturnPath } from "@/lib/auth-session";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; return_to?: string }> }) {
   const params = await searchParams;
-  const returnTo = params.return_to ? safeReturnPath(params.return_to, "/dealer") : "";
+  const returnTo = safePartnerLoginReturnPath(params.return_to);
   return <div className="login-page"><section className="login-visual"><Link href="/"><Logo inverse /></Link><div><p className="eyebrow slash">NEXS PARTNER SYSTEM</p><h1>Warranty operations,<br />connected.</h1><p>จัดการ Serial, งานติดตั้ง, บัตรรับประกัน และบริการหลังการขายในระบบเดียว</p></div><small>Factory → Dealer → Customer → After-sales</small></section><main className="login-panel"><div><p className="eyebrow">SECURE PARTNER ACCESS</p><h2>เข้าสู่ระบบพาร์ทเนอร์</h2><p>ใช้บัญชีที่ NEXS อนุมัติ ระบบจะตรวจบทบาทและสิทธิ์ของร้านบนเซิร์ฟเวอร์ทุกครั้ง</p>{params.error ? <p className="form-error">User / ชื่อผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง</p> : null}<form className="partner-login-form" action="/api/auth/login" method="post"><input type="hidden" name="return_to" value={returnTo} /><label>User / ชื่อผู้ใช้งาน<input name="email" type="text" autoComplete="username" placeholder="กรอก User หรือชื่อผู้ใช้งาน" required /></label><label>รหัสผ่าน<input name="password" type="password" autoComplete="current-password" minLength={8} required /></label><button className="button button-primary" type="submit">เข้าสู่ระบบ <span>→</span></button></form><ul className="login-security-list"><li>บัญชี Dealer เข้าถึงเฉพาะข้อมูลของร้านตนเอง</li><li>Admin actions ถูกบันทึกใน Audit Log</li><li>Session ถูกเข้ารหัสและหมดอายุอัตโนมัติ</li></ul><div className="login-warning"><b>ต้องการสิทธิ์เข้าใช้งาน?</b><p>ติดต่อ NEXS เพื่อผูกบัญชีกับ Dealer หรือ Admin ก่อนเข้าสู่ระบบ</p><Link href="/contact">ติดต่อทีมงาน →</Link></div></div></main></div>;
 }

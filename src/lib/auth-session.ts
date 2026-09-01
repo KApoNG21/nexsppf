@@ -75,6 +75,23 @@ export function safeReturnPath(value: string | null | undefined, fallback = "/de
   }
 }
 
+/**
+ * A warranty detail URL can remain in an old browser tab for hours. Reusing it
+ * after a fresh login makes the Dealer appear to be locked on the last card
+ * they viewed. Keep intentional workflow deep-links (for example QR
+ * activation) but let a stale warranty-detail login fall back to the account's
+ * normal dashboard.
+ */
+export function safePartnerLoginReturnPath(value: string | null | undefined) {
+  const safePath = safeReturnPath(value, "");
+  if (!safePath) return "";
+
+  const url = new URL(safePath, "https://nexs.local");
+  if (/^\/dealer\/warranties\/[^/]+\/?$/.test(url.pathname)) return "";
+  if (url.pathname === "/login") return "";
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 function sign(payload: string) {
   const secret = process.env.AUTH_SECRET;
   if (!secret || secret.length < 32) {

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createSessionToken,
   readSessionToken,
+  safePartnerLoginReturnPath,
   safeReturnPath,
 } from "@/lib/auth-session";
 import { PrivateFileBucket } from "@/lib/server-env";
@@ -93,6 +94,16 @@ describe("unified NEXS production system", () => {
     expect(safeReturnPath("/api/auth/logout")).toBe("/dealer");
     expect(safeReturnPath("/admin?tab=warranties")).toBe("/admin?tab=warranties");
     expect(safeReturnPath("/dealer/register-warranty?serial=B-729KDG4185063X")).toBe("/dealer/register-warranty?serial=B-729KDG4185063X");
+  });
+
+  it("does not reopen a stale warranty detail after a fresh Dealer login", () => {
+    expect(safePartnerLoginReturnPath("/dealer/warranties/B-954GOT4035925Z")).toBe("");
+    expect(safePartnerLoginReturnPath("/login")).toBe("");
+    expect(safePartnerLoginReturnPath("https://evil.example/steal")).toBe("");
+    expect(safePartnerLoginReturnPath("/dealer/register-warranty?serial=B-954GOT4035925Z"))
+      .toBe("/dealer/register-warranty?serial=B-954GOT4035925Z");
+    expect(safePartnerLoginReturnPath("/dealer/maintenance?serial=B-954GOT4035925Z"))
+      .toBe("/dealer/maintenance?serial=B-954GOT4035925Z");
   });
 
   it("preserves an unregistered QR serial through Dealer login and registration", async () => {

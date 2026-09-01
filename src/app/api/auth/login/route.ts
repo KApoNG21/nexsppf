@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { env } from "@/lib/server-env";
 import {
   createSessionToken,
+  safePartnerLoginReturnPath,
   safeReturnPath,
   SESSION_COOKIE,
   sessionMaxAge,
@@ -41,9 +42,8 @@ export async function POST(request: Request) {
   await env.DB.prepare("UPDATE auth_accounts SET last_login_at = CURRENT_TIMESTAMP WHERE lower(email) = ?")
     .bind(email)
     .run();
-  const intendedReturnTo = requestedReturnTo
-    ? safeReturnPath(requestedReturnTo, "/dealer")
-    : await defaultPartnerPath(email);
+  const approvedReturnTo = safePartnerLoginReturnPath(requestedReturnTo);
+  const intendedReturnTo = approvedReturnTo || await defaultPartnerPath(email);
   const returnTo = account.must_change_password
     ? `/change-password?return_to=${encodeURIComponent(intendedReturnTo)}`
     : intendedReturnTo;
