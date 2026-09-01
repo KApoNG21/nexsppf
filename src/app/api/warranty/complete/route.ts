@@ -23,6 +23,8 @@ export async function POST(request: Request) {
     if (customerPhone.length < 9 || customerPhone.length > 10) throw new PartnerValidationError("กรุณากรอกเบอร์โทรศัพท์ 9–10 หลัก");
     const customerEmail = formText(form, "customerEmail");
     if (customerEmail && !/^\S+@\S+\.\S+$/.test(customerEmail)) throw new PartnerValidationError("รูปแบบอีเมลไม่ถูกต้อง");
+    const customerLineId = formText(form, "customerLineId");
+    if (customerLineId && (customerLineId.length > 80 || /\s/.test(customerLineId))) throw new PartnerValidationError("LINE ID ต้องไม่มีช่องว่างและไม่เกิน 80 ตัวอักษร");
     const vehicleMake = requiredText(form, "vehicleMake", "ยี่ห้อรถ", 2, 80);
     const vehicleModel = requiredText(form, "vehicleModel", "รุ่นรถ", 1, 120);
     const vehiclePlate = requiredText(form, "vehiclePlate", "ทะเบียนรถ", 2, 40);
@@ -46,7 +48,7 @@ export async function POST(request: Request) {
     const updated = await env.DB.prepare(`
       WITH updated AS (
         UPDATE warranties
-        SET customer_name = ?, customer_phone = ?, customer_email = ?,
+        SET customer_name = ?, customer_phone = ?, customer_email = ?, customer_line_id = ?,
           vehicle_make = ?, vehicle_model = ?, vehicle_plate = ?, vehicle_year = ?, vehicle_color = ?,
           vehicle_vin_last6 = ?, odometer_km = ?,
           customer_completed_at = CURRENT_TIMESTAMP, status = 'active'
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
       customerName,
       customerPhone,
       customerEmail || null,
+      customerLineId || null,
       vehicleMake,
       vehicleModel,
       vehiclePlate,
@@ -71,7 +74,7 @@ export async function POST(request: Request) {
       odometerKm,
       current.id,
       serialCode,
-      JSON.stringify({ source: "qr-self-service" }),
+      JSON.stringify({ source: "qr-self-service", lineIdProvided: Boolean(customerLineId) }),
     ).first<UpdatedRow>();
     if (!updated) return fail("มีการลงทะเบียนบัตรนี้ไปแล้ว กรุณาสแกน QR เพื่อตรวจสอบ", 409);
 

@@ -1,6 +1,7 @@
 import { env } from "@/lib/server-env";
 import { resolveProductFromSerial } from "@/lib/serial";
 import { parseServicePlan } from "@/lib/after-sales";
+import { createWarrantyWorkOrderReference } from "@/lib/warranty-reference";
 import { authorizePartnerRequest, unauthorizedResponse } from "../../../../db/partner-access";
 import { enforceSameOrigin, fail, formText, normalizeSerial, PartnerValidationError, requiredText, validIsoDate } from "../../_partner-utils";
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const serialCode = normalizeSerial(requiredText(form, "serialCode", " Serial Number", 6, 64));
     const installDate = validIsoDate(requiredText(form, "installDate", "วันที่ติดตั้ง", 10, 10), "วันที่ติดตั้ง");
-    const workOrderRef = (formText(form, "workOrderRef") || `AUTO-${serialCode}`).slice(0, 80);
+    const workOrderRef = createWarrantyWorkOrderReference(serialCode, installDate);
     const installationType = formText(form, "installationType") || "full_body";
     if (!new Set(["full_body", "partial", "color_wrap", "custom"]).has(installationType)) throw new PartnerValidationError("รูปแบบงาน Wrap ไม่ถูกต้อง");
     const coverageArea = (formText(form, "coverageArea") || "ติดตั้งเต็มคัน").slice(0, 500);
@@ -151,6 +152,7 @@ export async function POST(request: Request) {
     return Response.json({
       ok: true,
       serialCode,
+      workOrderRef,
       status: "pending_customer",
       cardPath: `/r/${encodeURIComponent(serialCode)}`,
       detailPath: `/dealer/warranties/${encodeURIComponent(serialCode)}`,

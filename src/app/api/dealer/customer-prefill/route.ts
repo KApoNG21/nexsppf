@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     const customerPhone = optionalPhone(formText(form, "customerPhone"));
     const customerEmail = optionalText(form, "customerEmail", "อีเมล", 3, 160);
     if (customerEmail && !/^\S+@\S+\.\S+$/.test(customerEmail)) throw new PartnerValidationError("รูปแบบอีเมลไม่ถูกต้อง");
+    const customerLineId = optionalText(form, "customerLineId", "LINE ID", 2, 80);
+    if (customerLineId && /\s/.test(customerLineId)) throw new PartnerValidationError("LINE ID ต้องไม่มีช่องว่าง");
     const vehicleMake = optionalText(form, "vehicleMake", "ยี่ห้อรถ", 2, 80);
     const vehicleModel = optionalText(form, "vehicleModel", "รุ่นรถ", 1, 120);
     const vehicleYearText = formText(form, "vehicleYear");
@@ -29,7 +31,7 @@ export async function POST(request: Request) {
     const odometerText = formText(form, "odometerKm");
     const odometerKm = odometerText ? Number(odometerText) : null;
     if (odometerKm !== null && (!Number.isInteger(odometerKm) || odometerKm < 0 || odometerKm > 5000000)) throw new PartnerValidationError("เลขไมล์ไม่ถูกต้อง");
-    const values = { customerName, customerPhone, customerEmail, vehicleMake, vehicleModel, vehicleYear: vehicleYearText, vehicleColor, vehiclePlate, vehicleVinLast6, odometerKm: odometerText };
+    const values = { customerName, customerPhone, customerEmail, customerLineId, vehicleMake, vehicleModel, vehicleYear: vehicleYearText, vehicleColor, vehiclePlate, vehicleVinLast6, odometerKm: odometerText };
     if (!Object.values(values).some(Boolean)) throw new PartnerValidationError("กรอกข้อมูลที่ทราบอย่างน้อย 1 รายการ หรือกลับไปให้ลูกค้ากรอกเอง");
 
     const current = await env.DB.prepare("SELECT id, status FROM warranties WHERE serial_code = ? AND dealer_id = ? LIMIT 1")
@@ -40,10 +42,10 @@ export async function POST(request: Request) {
     const results = await env.DB.batch([
       env.DB.prepare(`
         UPDATE warranties
-        SET customer_name = ?, customer_phone = ?, customer_email = ?, vehicle_make = ?, vehicle_model = ?,
+        SET customer_name = ?, customer_phone = ?, customer_email = ?, customer_line_id = ?, vehicle_make = ?, vehicle_model = ?,
           vehicle_year = ?, vehicle_color = ?, vehicle_plate = ?, vehicle_vin_last6 = ?, odometer_km = ?
         WHERE id = ? AND dealer_id = ? AND status = 'pending_customer'
-      `).bind(customerName || null, customerPhone || null, customerEmail || null, vehicleMake || null, vehicleModel || null, vehicleYear, vehicleColor || null, vehiclePlate || null, vehicleVinLast6 || null, odometerKm, current.id, actor.dealerId),
+      `).bind(customerName || null, customerPhone || null, customerEmail || null, customerLineId || null, vehicleMake || null, vehicleModel || null, vehicleYear, vehicleColor || null, vehiclePlate || null, vehicleVinLast6 || null, odometerKm, current.id, actor.dealerId),
       env.DB.prepare(`INSERT INTO audit_logs (actor_email, actor_role, action, entity_type, entity_id, detail)
         VALUES (?, 'dealer', 'warranty.customer_prefill', 'warranty', ?, ?)`)
         .bind(actor.email, serialCode, JSON.stringify({ dealerId: actor.dealerId, fields: Object.entries(values).filter(([, value]) => Boolean(value)).map(([key]) => key) })),

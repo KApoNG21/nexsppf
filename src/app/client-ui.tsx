@@ -11,6 +11,7 @@ type DealerProfileInput = {
   province: string;
   contactName: string;
   phone: string;
+  lineId: string;
   email: string;
   certificationTier: string;
   status: string;
@@ -20,6 +21,7 @@ type CustomerRegistrationInput = {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  customerLineId: string;
   vehicleMake: string;
   vehicleModel: string;
   vehicleYear: string;
@@ -178,6 +180,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
   const [cardPath, setCardPath] = useState("");
   const [detailPath, setDetailPath] = useState("");
   const [prefillPath, setPrefillPath] = useState("");
+  const [workOrderReference, setWorkOrderReference] = useState("");
   const [maintenanceIncluded, setMaintenanceIncluded] = useState(true);
   const [claimIncluded, setClaimIncluded] = useState(false);
   const [rewrapIncluded, setRewrapIncluded] = useState(false);
@@ -224,7 +227,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
       const endpoint = kind === "dealer-register" ? "/api/dealer/warranties" : kind === "dealer-prefill" ? "/api/dealer/customer-prefill" : kind === "customer-complete" ? "/api/warranty/complete" : kind === "maintenance" ? "/api/dealer/maintenance" : kind === "serial-import" ? "/api/admin/serials/import" : kind === "policy" ? "/api/admin/policies" : kind === "profile" ? "/api/dealer/profile" : "/api/public-requests";
       try {
         const response = await fetch(endpoint, { method: "POST", body: form });
-        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; cardPath?: string; detailPath?: string; prefillPath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
+        const result = await response.json() as { error?: string; referenceCode?: string; serialCode?: string; workOrderRef?: string; cardPath?: string; detailPath?: string; prefillPath?: string; recordId?: number; dealerId?: number; imported?: number; valid?: number; total?: number; policyKey?: string; status?: string; errors?: { row: number; message: string }[] };
         const successfulReference = result.referenceCode ?? result.serialCode ?? result.policyKey ?? (result.recordId ? String(result.recordId) : result.dealerId ? `Dealer ${result.dealerId}` : result.imported !== undefined ? `${result.imported} serials` : result.total !== undefined ? `${result.valid ?? 0}/${result.total} rows valid` : "");
         const rowErrors = result.errors?.slice(0, 5).map((item) => `แถว ${item.row}: ${item.message}`).join(" · ");
         if (!response.ok || !successfulReference) {
@@ -235,6 +238,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
         setCardPath(result.cardPath ?? "");
         setDetailPath(result.detailPath ?? "");
         setPrefillPath(result.prefillPath ?? "");
+        setWorkOrderReference(result.workOrderRef ?? "");
         setSent(true);
       } catch (error) {
         setSubmitError(error instanceof Error ? error.message : "ไม่สามารถส่งคำขอได้ กรุณาลองใหม่อีกครั้ง");
@@ -256,13 +260,13 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
         <div>
           <p className="eyebrow">{activationDone ? "SERIAL ACTIVATED" : prefillDone ? "CUSTOMER DRAFT SAVED" : customerDone ? "WARRANTY ACTIVE" : "SAVED"}</p>
           <h3>{activationDone ? "เปิด Serial เรียบร้อยแล้ว — งานขั้นตอนนี้เสร็จแล้ว" : prefillDone ? "บันทึกข้อมูลช่วยกรอกแล้ว" : customerDone ? "บัตรรับประกันพร้อมใช้งาน" : referenceCode ? "บันทึกข้อมูลเรียบร้อยแล้ว" : "ดำเนินการสำเร็จ"}</h3>
-          <p>{activationDone ? <>Serial <strong>{referenceCode}</strong> เริ่มนับอายุรับประกันแล้ว<br />ส่งมอบบัตรให้ลูกค้าสแกน QR เดิม เพื่อตรวจข้อมูลและยืนยันด้วยตนเอง</> : prefillDone ? <>Dealer บันทึกข้อมูลที่มีไว้เป็นร่างแล้ว ลูกค้าต้องสแกน QR ตรวจสอบ กรอกส่วนที่ขาด และกดยืนยันเพื่อให้บัตรสมบูรณ์</> : customerDone ? <>ข้อมูลถูกบันทึกแล้ว ใช้ QR เดิมตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการได้ตลอด</> : referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>
+          <p>{activationDone ? <>Serial <strong>{referenceCode}</strong> เริ่มนับอายุรับประกันแล้ว{workOrderReference && <><br />เลขที่งาน NEXS <strong>{workOrderReference}</strong></>}<br />ส่งมอบบัตรให้ลูกค้าสแกน QR เดิม เพื่อตรวจข้อมูลและยืนยันด้วยตนเอง</> : prefillDone ? <>Dealer บันทึกข้อมูลที่มีไว้เป็นร่างแล้ว ลูกค้าต้องสแกน QR ตรวจสอบ กรอกส่วนที่ขาด และกดยืนยันเพื่อให้บัตรสมบูรณ์</> : customerDone ? <>ข้อมูลถูกบันทึกแล้ว ใช้ QR เดิมตรวจสอบวันติดตั้ง วันหมดอายุ และประวัติบริการได้ตลอด</> : referenceCode ? <>เลขอ้างอิง <strong>{referenceCode}</strong><br />ข้อมูลถูกบันทึกแล้วและพร้อมสำหรับขั้นตอนถัดไป</> : success}</p>
           {activationDone && detailPath && <a className="button button-primary success-next-link" href={detailPath}>เสร็จสิ้น — กลับรายละเอียดบัตร <span>→</span></a>}
           {activationDone && prefillPath && <a className="button button-secondary success-next-link" href={prefillPath}>ช่วยกรอกข้อมูลลูกค้า (ไม่บังคับ) <span>→</span></a>}
           {prefillDone && detailPath && <a className="button button-primary success-next-link" href={detailPath}>กลับรายละเอียดบัตร <span>→</span></a>}
           {customerDone && cardPath && <a className="button button-primary success-next-link" href={cardPath}>ดูบัตรรับประกัน <span>→</span></a>}
           {cardPath && <WarrantyQr cardPath={cardPath} serial={referenceCode} compact />}
-          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setCardPath(""); setDetailPath(""); setPrefillPath(""); if (activationDone) { setSerialInput(""); setSerialScanMessage(""); } }}>{activationDone ? "เปิด Serial ใบถัดไป" : prefillDone ? "ช่วยกรอกข้อมูลบัตรอื่น" : "กรอกข้อมูลใหม่"}</button>
+          <button type="button" onClick={() => { setSent(false); setReferenceCode(""); setWorkOrderReference(""); setCardPath(""); setDetailPath(""); setPrefillPath(""); if (activationDone) { setSerialInput(""); setSerialScanMessage(""); } }}>{activationDone ? "เปิด Serial ใบถัดไป" : prefillDone ? "ช่วยกรอกข้อมูลบัตรอื่น" : "กรอกข้อมูลใหม่"}</button>
         </div>
       </div>
     );
@@ -305,7 +309,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
         {serialScanMessage && <p className={serialScanMessage.startsWith("อ่าน QR ได้") ? "form-error" : "serial-scan-success"} role="status">{serialScanMessage}</p>}
       </div>
       <Field name="installDate" label="วันที่ติดตั้ง" type="date" required />
-      <Field name="workOrderRef" label="เลขที่งาน / ใบสั่งงาน" placeholder="เช่น WRAP-R2-260814-01" required />
+      <div className="auto-reference-note"><span>AUTO</span><p><b>ระบบออกเลขที่งานให้อัตโนมัติ</b><small>รูปแบบ NXS-วันที่ติดตั้ง-Serial · Dealer ไม่ต้องคิดหรือกรอกเลขเอง</small></p></div>
       <label>รูปแบบงาน Wrap<select name="installationType" required defaultValue="full_body"><option value="full_body">Wrap เต็มคัน</option><option value="partial">Wrap บางส่วน</option><option value="color_wrap">เปลี่ยนสีรถ</option><option value="custom">งานออกแบบพิเศษ</option></select></label>
       <label className="field-wide">พื้นที่ที่ติดตั้ง<textarea name="coverageArea" rows={3} placeholder="เช่น เต็มคัน ยกเว้นหลังคา / ฝากระโปรงหน้า กันชนหน้า และกระจกมองข้าง" maxLength={500} required /></label>
       <Field name="installationBranch" label="สาขาที่ติดตั้ง" placeholder="เช่น พระราม 2 / รัชดา / CDC" required />
@@ -342,6 +346,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
       <Field name="customerName" label="ชื่อ-นามสกุล (ถ้ามี)" placeholder="ชื่อเจ้าของรถ" defaultValue={customerRegistration?.customerName} />
       <Field name="customerPhone" label="เบอร์โทรศัพท์ (ถ้ามี)" placeholder="08x xxx xxxx" defaultValue={customerRegistration?.customerPhone} />
       <Field name="customerEmail" label="อีเมล (ถ้ามี)" placeholder="customer@example.com" type="email" defaultValue={customerRegistration?.customerEmail} />
+      <Field name="customerLineId" label="LINE ID ลูกค้า (ถ้ามี)" placeholder="LINE ID สำหรับติดต่อ ไม่ใช่ชื่อโปรไฟล์" defaultValue={customerRegistration?.customerLineId} />
       <Field name="vehicleMake" label="ยี่ห้อรถ (ถ้ามี)" placeholder="เช่น Porsche" defaultValue={customerRegistration?.vehicleMake} />
       <Field name="vehicleModel" label="รุ่นรถ (ถ้ามี)" placeholder="เช่น 911 Carrera" defaultValue={customerRegistration?.vehicleModel} />
       <Field name="vehicleYear" label="ปีรถ ค.ศ. (ถ้ามี)" placeholder="เช่น 2025" type="number" defaultValue={customerRegistration?.vehicleYear} />
@@ -360,6 +365,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
       <Field name="customerName" label="ชื่อ-นามสกุล" placeholder="ชื่อเจ้าของรถ" required />
       <Field name="customerPhone" label="เบอร์โทรศัพท์" placeholder="08x xxx xxxx" required />
       <Field name="customerEmail" label="อีเมล (ไม่บังคับ)" placeholder="customer@example.com" type="email" />
+      <Field name="customerLineId" label="LINE ID (ไม่บังคับ)" placeholder="LINE ID สำหรับติดต่อ" />
       <Field name="vehicleMake" label="ยี่ห้อรถ" placeholder="เช่น Porsche" required />
       <Field name="vehicleModel" label="รุ่นรถ" placeholder="เช่น 911" required />
       <Field name="vehiclePlate" label="ทะเบียนรถ" placeholder="ข้อมูลสาธารณะจะแสดงแบบปกปิด" required />
@@ -411,6 +417,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
       <div><dt>Dealer code</dt><dd>{profile.dealerCode}</dd></div>
       <div><dt>ชื่อร้าน</dt><dd>{profile.name}</dd></div>
       <div><dt>จังหวัด</dt><dd>{profile.province}</dd></div>
+      <div><dt>LINE ID ร้าน</dt><dd>{profile.lineId || "ยังไม่ได้ระบุ"}</dd></div>
       <div><dt>ระดับการรับรอง</dt><dd>{profile.certificationTier || "รอ NEXS กำหนด"}</dd></div>
       <div><dt>สถานะ</dt><dd>{profile.status}</dd></div>
     </dl>}
@@ -418,6 +425,7 @@ export function DemoForm({ kind, initialSerial = "", profile, customerRegistrati
       <p className="field-wide form-note">ชื่อร้าน จังหวัด สถานะ และระดับการรับรองแก้ไขได้โดย NEXS Admin เท่านั้น</p>
       <Field name="contactName" label="ผู้ติดต่อ" placeholder="ชื่อผู้ดูแลร้าน" defaultValue={profile?.contactName} required />
       <Field name="phone" label="เบอร์โทรศัพท์" placeholder="02 xxx xxxx" defaultValue={profile?.phone} required />
+      <Field name="lineId" label="LINE ID ร้าน" placeholder="เช่น @nexsdealer หรือ dealerline" defaultValue={profile?.lineId} required />
       <Field name="email" label="อีเมล" placeholder="dealer@example.com" type="email" defaultValue={profile?.email} />
       {submitError && <p className="field-wide submit-error" role="alert">{submitError}</p>}
       <button className="button button-primary submit-button" type="submit" disabled={submitting}>{submitting ? "กำลังบันทึก..." : `${button} →`}</button>
@@ -584,6 +592,7 @@ export function AdminDealerForm() {
       <Field name="province" label="จังหวัด" placeholder="Bangkok" required />
       <Field name="contactName" label="ผู้ติดต่อ" placeholder="ชื่อผู้ดูแลร้าน" required />
       <Field name="phone" label="เบอร์โทรศัพท์" placeholder="02 xxx xxxx" required />
+      <Field name="lineId" label="LINE ID ร้าน" placeholder="เช่น @nexsdealer หรือ dealerline" required />
       <Field name="email" label="อีเมลร้าน (ไม่บังคับ)" placeholder="dealer@example.com" type="email" />
       <Field name="certificationTier" label="ระดับการรับรอง (ไม่บังคับ)" placeholder="authorized" />
     </>}

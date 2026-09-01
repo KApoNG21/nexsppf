@@ -11,10 +11,12 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const contactName = requiredText(form, "contactName", "ชื่อผู้ติดต่อ", 2, 120);
     const phone = requiredText(form, "phone", "เบอร์โทรศัพท์", 8, 40);
+    const lineId = requiredText(form, "lineId", "LINE ID", 2, 80);
+    if (/\s/.test(lineId)) throw new PartnerValidationError("LINE ID ต้องไม่มีช่องว่าง");
     const email = formText(form, "email");
     if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new PartnerValidationError("รูปแบบอีเมลไม่ถูกต้อง");
     const results = await env.DB.batch([
-      env.DB.prepare("UPDATE dealers SET contact_name = ?, phone = ?, email = ? WHERE id = ? AND status = 'active'").bind(contactName, phone, email || null, actor.dealerId),
+      env.DB.prepare("UPDATE dealers SET contact_name = ?, phone = ?, line_id = ?, email = ? WHERE id = ? AND status = 'active'").bind(contactName, phone, lineId, email || null, actor.dealerId),
       env.DB.prepare(`INSERT INTO audit_logs (actor_email, actor_role, action, entity_type, entity_id, detail) VALUES (?, 'dealer', 'dealer.profile_update', 'dealer', ?, NULL)`).bind(actor.email, String(actor.dealerId)),
     ]);
     if (Number(results[0]?.meta?.changes ?? 0) !== 1) return fail("ไม่สามารถอัปเดต Dealer ที่ไม่ได้เปิดใช้งาน", 409);

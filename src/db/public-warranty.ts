@@ -31,6 +31,7 @@ export type PublicWarrantyRecord = {
   install: string;
   expiry: string;
   dealer: string;
+  dealerContact: string;
   workOrder: string;
   wrapType: string;
   coverage: string;
@@ -54,6 +55,7 @@ export type CustomerRegistrationDraft = {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  customerLineId: string;
   vehicleMake: string;
   vehicleModel: string;
   vehicleYear: string;
@@ -67,6 +69,7 @@ type CustomerRegistrationDraftRow = {
   customer_name: string | null;
   customer_phone: string | null;
   customer_email: string | null;
+  customer_line_id: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_year: number | null;
@@ -92,6 +95,8 @@ type PublicWarrantyRow = {
   warranty_years: number | null;
   dealer_name: string | null;
   dealer_province: string | null;
+  dealer_phone: string | null;
+  dealer_line_id: string | null;
   work_order_ref: string | null;
   installation_type: string;
   coverage_area: string;
@@ -135,7 +140,7 @@ const emptyBenefits = () => ({
 
 export async function findCustomerRegistrationDraft(serial: string): Promise<CustomerRegistrationDraft | null> {
   const row = await env.DB.prepare(`
-    SELECT customer_name, customer_phone, customer_email, vehicle_make, vehicle_model,
+    SELECT customer_name, customer_phone, customer_email, customer_line_id, vehicle_make, vehicle_model,
       vehicle_year, vehicle_color, vehicle_plate, vehicle_vin_last6, odometer_km
     FROM warranties
     WHERE serial_code = ? AND status = 'pending_customer'
@@ -146,6 +151,7 @@ export async function findCustomerRegistrationDraft(serial: string): Promise<Cus
     customerName: row.customer_name ?? "",
     customerPhone: row.customer_phone ?? "",
     customerEmail: row.customer_email ?? "",
+    customerLineId: row.customer_line_id ?? "",
     vehicleMake: row.vehicle_make ?? "",
     vehicleModel: row.vehicle_model ?? "",
     vehicleYear: row.vehicle_year == null ? "" : String(row.vehicle_year),
@@ -174,6 +180,8 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
       ps.warranty_years,
       d.name AS dealer_name,
       d.province AS dealer_province,
+      d.phone AS dealer_phone,
+      d.line_id AS dealer_line_id,
       w.work_order_ref,
       COALESCE(w.installation_type, 'full_body') AS installation_type,
       COALESCE(w.coverage_area, 'ติดตั้งเต็มคัน') AS coverage_area,
@@ -200,6 +208,7 @@ export async function findPublicWarranty(serial: string): Promise<PublicWarranty
     dealer: row.dealer_name
       ? `${row.dealer_name}${row.dealer_province ? ` · ${row.dealer_province}` : ""}`
       : "NEXS Authorized Dealer",
+    dealerContact: [row.dealer_phone ? `โทร ${row.dealer_phone}` : "", row.dealer_line_id ? `LINE ${row.dealer_line_id}` : ""].filter(Boolean).join(" · ") || "ติดต่อผ่าน NEXS",
     workOrder: row.work_order_ref || "-",
     wrapType: installationTypeLabel(row.installation_type),
     coverage: row.coverage_area,

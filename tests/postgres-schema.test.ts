@@ -53,4 +53,10 @@ describe('PostgreSQL migration contract', () => {
     const sql = readFileSync('migrations/postgres/0009_dealer_service_plan_editing.sql', 'utf8');
     expect(sql).toContain('next_recommended_date_override');
   });
+
+  it('supports Dealer and customer LINE contact channels', () => {
+    const sql = readFileSync('migrations/postgres/0010_contact_channels.sql', 'utf8');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS line_id');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS customer_line_id');
+  });
 });

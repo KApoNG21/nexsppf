@@ -30,6 +30,8 @@ export async function POST(request: Request) {
       const province = requiredText(form, "province", "จังหวัด", 2, 100);
       const contactName = requiredText(form, "contactName", "ผู้ติดต่อ", 2, 120);
       const phone = requiredText(form, "phone", "เบอร์โทรศัพท์", 8, 40);
+      const lineId = requiredText(form, "lineId", "LINE ID", 2, 80);
+      if (/\s/.test(lineId)) throw new PartnerValidationError("LINE ID ต้องไม่มีช่องว่าง");
       const email = formText(form, "email");
       if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new PartnerValidationError("รูปแบบอีเมลไม่ถูกต้อง");
       const certificationTier = formText(form, "certificationTier").slice(0, 80);
@@ -39,9 +41,9 @@ export async function POST(request: Request) {
         const temporaryPassword = passwordFrom(form);
         const passwordHash = await bcrypt.hash(temporaryPassword, 12);
         await env.DB.batch([
-          env.DB.prepare(`INSERT INTO dealers (dealer_code, name, province, contact_name, phone, email, certification_tier, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`)
-            .bind(dealerCode, name, province, contactName, phone, email || accountEmail, certificationTier || null),
+          env.DB.prepare(`INSERT INTO dealers (dealer_code, name, province, contact_name, phone, line_id, email, certification_tier, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`)
+            .bind(dealerCode, name, province, contactName, phone, lineId, email || accountEmail, certificationTier || null),
           env.DB.prepare(`INSERT INTO auth_accounts (email, display_name, password_hash, status, must_change_password)
             VALUES (?, ?, ?, 'active', true)`)
             .bind(accountEmail, displayName, passwordHash),
@@ -53,8 +55,8 @@ export async function POST(request: Request) {
         return Response.json({ ok: true, dealerCode, status: "active", accountEmail }, { status: 201 });
       }
       await env.DB.batch([
-        env.DB.prepare(`INSERT INTO dealers (dealer_code, name, province, contact_name, phone, email, certification_tier, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`)
-          .bind(dealerCode, name, province, contactName, phone, email || null, certificationTier || null),
+        env.DB.prepare(`INSERT INTO dealers (dealer_code, name, province, contact_name, phone, line_id, email, certification_tier, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`)
+          .bind(dealerCode, name, province, contactName, phone, lineId, email || null, certificationTier || null),
         audit(actor.email, "dealer.create", dealerCode, { status: "pending" }),
       ]);
       return Response.json({ ok: true, dealerCode, status: "pending" }, { status: 201 });

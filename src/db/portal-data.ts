@@ -22,6 +22,7 @@ export type DealerWarrantyDetail = {
   customer_name: string | null;
   customer_phone: string | null;
   customer_email: string | null;
+  customer_line_id: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_plate: string | null;
@@ -65,6 +66,7 @@ export type DealerProfile = {
   province: string;
   contact_name: string;
   phone: string;
+  line_id: string | null;
   email: string | null;
   certification_tier: string | null;
   status: string;
@@ -135,7 +137,7 @@ export async function getDealerTasks(dealerId: number, limit = 8): Promise<Porta
 
 export async function getDealerProfile(dealerId: number): Promise<DealerProfile | null> {
   return env.DB.prepare(`
-    SELECT dealer_code, name, province, contact_name, phone, email, certification_tier, status
+    SELECT dealer_code, name, province, contact_name, phone, line_id, email, certification_tier, status
     FROM dealers
     WHERE id = ?
     LIMIT 1
@@ -143,7 +145,7 @@ export async function getDealerProfile(dealerId: number): Promise<DealerProfile 
 }
 
 export async function getDealerWarrantyDetail(dealerId: number, serialCode: string): Promise<{ warranty: DealerWarrantyDetail; plan: DealerServicePlan | null; maintenance: DealerMaintenanceItem[]; media: DealerMediaItem[] } | null> {
-  const warranty = await env.DB.prepare(`SELECT w.id, w.serial_code, w.product_model_code, w.customer_name, w.customer_phone, w.customer_email, w.vehicle_make, w.vehicle_model, w.vehicle_plate, w.vehicle_year, w.vehicle_color, w.vehicle_vin_last6, w.odometer_km, w.work_order_ref, w.installation_type, w.coverage_area, w.installation_branch, w.installer_name, w.install_date, w.expiry_date, ps.warranty_years, w.status FROM warranties w LEFT JOIN product_series ps ON ps.model_code = w.product_model_code WHERE w.dealer_id = ? AND w.serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
+  const warranty = await env.DB.prepare(`SELECT w.id, w.serial_code, w.product_model_code, w.customer_name, w.customer_phone, w.customer_email, w.customer_line_id, w.vehicle_make, w.vehicle_model, w.vehicle_plate, w.vehicle_year, w.vehicle_color, w.vehicle_vin_last6, w.odometer_km, w.work_order_ref, w.installation_type, w.coverage_area, w.installation_branch, w.installer_name, w.install_date, w.expiry_date, ps.warranty_years, w.status FROM warranties w LEFT JOIN product_series ps ON ps.model_code = w.product_model_code WHERE w.dealer_id = ? AND w.serial_code = ? LIMIT 1`).bind(dealerId, serialCode).first<DealerWarrantyDetail>();
   if (!warranty) return null;
   const [plan, maintenance, media] = await Promise.all([
     env.DB.prepare(`
@@ -211,7 +213,7 @@ export async function getAdminRecords(type: AdminRecordType, limit = 30): Promis
         w.install_date AS date, w.status
       FROM warranties w JOIN dealers d ON d.id = w.dealer_id ORDER BY w.created_at DESC LIMIT ?`,
     dealers: `SELECT d.dealer_code AS reference, d.name AS subject,
-        d.province || CASE WHEN account.email IS NULL THEN ' · ยังไม่มีบัญชี' ELSE ' · ' || account.email END AS detail,
+        d.province || ' · โทร ' || d.phone || CASE WHEN d.line_id IS NULL OR d.line_id = '' THEN '' ELSE ' · LINE ' || d.line_id END || CASE WHEN account.email IS NULL THEN ' · ยังไม่มีบัญชี' ELSE ' · ' || account.email END AS detail,
         d.created_at AS date,
         CASE
           WHEN d.status <> 'active' THEN d.status

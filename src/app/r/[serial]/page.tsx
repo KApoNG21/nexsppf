@@ -35,7 +35,7 @@ export default async function WarrantyCardPage({ params }: { params: Promise<{ s
           {expired && <p className="expired-card-note">บัตรหมดอายุแล้ว แต่ประวัติบริการยังตรวจสอบได้ตามปกติ</p>}
           <h1>{record.product}</h1>
           <p className="serial-label">SERIAL NUMBER</p><strong className="serial-value">{record.serial}</strong>
-          <dl><CardRow label="เลขที่งาน" value={record.workOrder} /><CardRow label="รูปแบบงาน" value={record.wrapType} /><CardRow label="พื้นที่ติดตั้ง" value={record.coverage} /><CardRow label="รถ" value={record.vehicle} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="ดูแลครั้งถัดไป" value={record.nextMaintenance} /><CardRow label="สาขา" value={record.branch} /><CardRow label="ศูนย์ติดตั้ง" value={record.dealer} /></dl>
+          <dl><CardRow label="เลขที่งาน NEXS" value={record.workOrder} /><CardRow label="รูปแบบงาน" value={record.wrapType} /><CardRow label="พื้นที่ติดตั้ง" value={record.coverage} /><CardRow label="รถ" value={record.vehicle} /><CardRow label="วันที่ติดตั้ง" value={record.install} /><CardRow label="หมดอายุ" value={record.expiry} /><CardRow label="ดูแลครั้งถัดไป" value={record.nextMaintenance} /><CardRow label="สาขา" value={record.branch} /><CardRow label="ศูนย์ติดตั้ง" value={record.dealer} /><CardRow label="ติดต่อศูนย์" value={record.dealerContact} /></dl>
           <section className="nexs-product-warranty">
             <p className="eyebrow">NEXS PRODUCT WARRANTY</p>
             <h2>{productWarrantyTitle(record.product, record.productWarrantyYears)}</h2>

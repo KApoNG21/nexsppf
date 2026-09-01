@@ -15,8 +15,9 @@ describe("wrap warranty production readiness", () => {
     }
   });
 
-  it("requires the dealer to describe and photograph the wrap work", () => {
-    expect(dealerForm).toContain("เลขที่งาน / ใบสั่งงาน");
+  it("generates the job number and requires the dealer to describe and photograph the wrap work", () => {
+    expect(dealerForm).toContain("ระบบออกเลขที่งานให้อัตโนมัติ");
+    expect(dealerApi).toContain("createWarrantyWorkOrderReference");
     expect(dealerForm).toContain("รูปแบบงาน Wrap");
     expect(dealerForm).toContain("พื้นที่ที่ติดตั้ง");
     expect(dealerForm).toContain("multiple required");
