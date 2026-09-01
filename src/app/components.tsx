@@ -123,8 +123,7 @@ export function DashboardShell({ role, title, children, active = "dashboard", ad
     { key: "register", label: "เปิดใช้งาน QR", href: "/dealer/register-warranty" },
     { key: "customer-registration", label: "ช่วยกรอกข้อมูลลูกค้า", href: "/dealer/customer-registration" },
     { key: "warranties", label: "บัตรรับประกัน", href: "/dealer/warranties" },
-    { key: "maintenance", label: "บำรุงรักษา", href: "/dealer/maintenance" },
-    { key: "requests", label: "งานที่ได้รับมอบหมาย", href: "/dealer/requests" },
+    { key: "maintenance", label: "Maintenance", href: "/dealer/maintenance" },
     { key: "profile", label: "ข้อมูลร้าน", href: "/dealer/profile" },
     { key: "password", label: "เปลี่ยนรหัสผ่าน", href: "/change-password?return_to=/dealer" },
   ];
